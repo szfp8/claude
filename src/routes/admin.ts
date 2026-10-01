@@ -53,14 +53,14 @@ export const adminRoutes = new Hono<{ Bindings: Bindings }>()
 const setupPage = (c: { env: Bindings }, error?: string) => renderSetupPage(error, { requireToken: !!c.env.SETUP_TOKEN })
 
 adminRoutes.get('/setup', async (c) => {
-  if (!c.env.DB) return c.html(setupPage(c, 'D1 数据库未绑定。请在 Cloudflare 中打开当前 Worker → 设置 → 绑定，添加 D1，变量名称必须是 DB，然后重新部署。'))
+  if (!c.env.DB) return c.html(setupPage(c, '系统正在初始化，请稍后重试。'))
   try {
     const count = (await c.env.DB.prepare('SELECT COUNT(*) as n FROM admin_users').first()) as any
     if (count.n > 0) return c.redirect('/admin/login')
     return c.html(setupPage(c))
   } catch (e) {
     console.error('D1 setup check failed', e)
-    return c.html(setupPage(c, 'D1 已绑定，但数据库表尚未初始化。请确认 Cloudflare 构建的部署命令是 npm run deploy，然后重新部署。'))
+    return c.html(setupPage(c, '系统正在初始化，请稍后重试。'))
   }
 })
 
@@ -71,7 +71,7 @@ adminRoutes.post('/setup', async (c) => {
     count = (await c.env.DB.prepare('SELECT COUNT(*) as n FROM admin_users').first()) as any
   } catch (e) {
     console.error('D1 setup write check failed', e)
-    return c.html(setupPage(c, 'D1 已绑定，但数据库表尚未初始化。请重新执行 npm run deploy。'))
+    return c.html(setupPage(c, '系统正在初始化，请稍后重试。'))
   }
   if (count.n > 0) return c.redirect('/admin/login')
   const b = await c.req.parseBody()
@@ -130,13 +130,23 @@ adminRoutes.post('/setup', async (c) => {
 })
 
 // ---------- 登录 / 登出（无需鉴权）----------
-adminRoutes.get('/login', (c) => c.html(renderLoginPage()))
+adminRoutes.get('/login', async (c) => {
+  if (!c.env.DB) return c.html(renderLoginPage('系统正在初始化，请稍后重试。'))
+  try {
+    const count = (await c.env.DB.prepare('SELECT COUNT(*) as n FROM admin_users').first()) as any
+    if (Number(count?.n || 0) === 0) return c.redirect('/admin/setup')
+  } catch (e) {
+    console.error('D1 login bootstrap check failed', e)
+    return c.html(renderLoginPage('系统正在初始化，请稍后重试。'))
+  }
+  return c.html(renderLoginPage())
+})
 
 adminRoutes.post('/login', async (c) => {
   const body = await c.req.parseBody()
   const email = String(body.email || '').trim().toLowerCase()
   const password = String(body.password || '')
-  if (!c.env.DB) return c.html(renderLoginPage('D1 数据库未绑定，请先在 Cloudflare 设置 → 绑定中添加变量 DB'))
+  if (!c.env.DB) return c.html(renderLoginPage('系统正在初始化，请稍后重试。'))
   const ip = c.req.header('cf-connecting-ip') || c.req.header('x-forwarded-for') || 'unknown'
   if (await isLoginLocked(c.env.CACHE_KV, email, ip)) {
     return c.html(renderLoginPage(`登录失败次数过多，请 ${Math.round(LOGIN_LOCK_SECONDS / 60)} 分钟后再试`), 429)
@@ -146,7 +156,7 @@ adminRoutes.post('/login', async (c) => {
     user = await c.env.DB.prepare('SELECT * FROM admin_users WHERE email = ?').bind(email).first()
   } catch (e) {
     console.error('D1 login query failed', e)
-    return c.html(renderLoginPage('D1 已绑定，但数据库表尚未初始化，请重新部署并执行 D1 migrations'))
+    return c.html(renderLoginPage('系统正在初始化，请稍后重试。'))
   }
   const targetIterations = getPbkdf2Iterations(c.env)
   // 用户不存在时也做一次等价的 PBKDF2 计算，避免通过响应时间枚举管理员邮箱。
