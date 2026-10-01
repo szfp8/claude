@@ -49,25 +49,38 @@ function exitWith(result, label) {
   }
 }
 
-function getD1BindingName() {
+function readWranglerD1Config() {
   try {
     const config = readFileSync(join(root, 'wrangler.toml'), 'utf8')
-    const match = config.match(/binding\s*=\s*["']([^"']+)["']/)
-    return match?.[1] || 'DB'
+    const name = config.match(/database_name\s*=\s*["']([^"']+)["']/)?.[1]
+    const binding = config.match(/binding\s*=\s*["']([^"']+)["']/)?.[1]
+    return {
+      databaseName: name,
+      binding: binding || 'DB',
+    }
   } catch {
-    return 'DB'
+    return { databaseName: null, binding: 'DB' }
   }
 }
 
 function getProvisionedD1() {
   const result = run(['d1', 'list', '--json'], { capture: true })
   if (result.status !== 0) return null
+
   try {
     const dbs = JSON.parse(result.stdout || '[]')
-    const binding = getD1BindingName().toLowerCase()
-    return Array.isArray(dbs)
-      ? dbs.find((db) => db.name?.toLowerCase().includes(binding)) || dbs[0]
-      : null
+    const config = readWranglerD1Config()
+    if (!Array.isArray(dbs)) return null
+
+    // Fresh Cloudflare accounts may contain unrelated D1 databases.
+    // Always prefer the configured database_name over fuzzy binding matches.
+    if (config.databaseName) {
+      const exact = dbs.find((db) => db.name === config.databaseName)
+      if (exact) return exact
+    }
+
+    const binding = config.binding.toLowerCase()
+    return dbs.find((db) => db.name?.toLowerCase().includes(binding)) || null
   } catch {
     return null
   }
@@ -76,7 +89,7 @@ function getProvisionedD1() {
 function validateD1Resource() {
   const d1 = getProvisionedD1()
   if (!d1) {
-    console.error('Cloudflare D1 resource 未找到，请检查 DB binding 和 wrangler 配置')
+    console.error('Cloudflare D1 resource 未找到，请检查 database_name 和 DB binding 配置')
     process.exit(1)
   }
   if (!d1.uuid && !d1.id) {
