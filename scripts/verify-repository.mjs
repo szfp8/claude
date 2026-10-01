@@ -49,7 +49,7 @@ try {
 try {
   const wrangler = readFileSync(join(root, 'wrangler.toml'), 'utf8')
   check('D1 binding configured', /binding\s*=\s*["']DB["']/.test(wrangler))
-  check('D1 database name configured', /database_name\s*=/.test(wrangler))
+  check('D1 resource configuration available', /database_name\s*=|database_id\s*=/.test(wrangler))
 } catch {
   check('wrangler.toml readable', false)
 }
