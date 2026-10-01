@@ -1,0 +1,4 @@
+CREATE TABLE IF NOT EXISTS daily_stats (
+  date TEXT PRIMARY KEY,
+  views INTEGER NOT NULL DEFAULT 0
+);
