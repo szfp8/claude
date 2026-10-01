@@ -68,7 +68,7 @@ try {
   }
 
   console.log('→ 应用远程 D1 migrations…')
-  const migrate = run(['d1', 'migrations', 'apply', 'DB', '--remote', '--yes', '--config', 'wrangler.toml'])
+  const migrate = run(['d1', 'migrations', 'apply', 'DB', '--remote', '--config', 'wrangler.toml'])
   exitWith(migrate, 'D1 migration')
 
   console.log('→ 发布已完成数据库初始化的 Worker…')
