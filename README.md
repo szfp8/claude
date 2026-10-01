@@ -2,11 +2,11 @@
 
 可复刻、可 Fork、可独立部署的 Cloudflare Workers CMS 基础模板。
 
-设计目标：任何新的 Cloudflare 账号、Worker、D1、KV、R2 环境，都可以直接从 GitHub 仓库完成一次性部署，不依赖 ZIP 文件，也不需要手工创建 Cloudflare 资源。
+设计目标：新的 Cloudflare 账号、Worker、D1、KV、R2 环境，都可以直接从 GitHub 仓库完成一次性部署，不依赖 ZIP 文件，也不需要人工创建 Cloudflare 资源。
 
 ## 新环境一键部署
 
-每次复制仓库后的标准流程：
+标准流程：
 
 ```text
 GitHub Repository
@@ -19,24 +19,48 @@ npm run deploy
       ↓
 scripts/deploy-all.mjs
       ↓
-自动检查 D1
+检查 Cloudflare 资源
       ↓
-首次部署自动创建 KV / D1 / R2
+自动创建 KV / D1 / R2
       ↓
-绑定资源并执行 migrations
+执行 D1 migrations
       ↓
-重新发布 Worker
+部署 Worker
       ↓
-部署后健康检查
+执行健康检查
 ```
 
-无需：
+不需要：
 
 - 下载 ZIP
 - 本地安装 Wrangler
 - 手动创建 D1
 - 手动复制 database_id
-- 手动执行 SQL migration
+- 手动执行 migration
+
+## Fork / 复制部署规范
+
+复制仓库到新的 GitHub 账号后：
+
+1. 创建 Cloudflare Workers Build 项目
+2. 连接新的 GitHub Repository
+3. 设置部署命令：
+
+```bash
+npm run deploy
+```
+
+4. Cloudflare 会自动完成资源初始化。
+
+仓库不保存：
+
+- API Key
+- Token
+- 生产密码
+- 客户信息
+- 业务私有配置
+
+所有环境变量和 Secret 应通过 Cloudflare Dashboard 或 CI Secret 配置。
 
 ## Cloudflare Workers Builds 配置
 
@@ -48,9 +72,9 @@ Deploy command    = npm run deploy
 Node.js           = 26.10.0
 ```
 
-## 部署资源说明
+## 自动创建资源
 
-首次部署会自动创建：
+首次部署自动创建：
 
 - D1 Database
 - KV Namespace
@@ -58,9 +82,18 @@ Node.js           = 26.10.0
 - Workers AI Binding
 - Static Assets
 
-资源名称由模板配置统一管理。
+资源绑定统一由 `wrangler.toml` 管理。
 
-## 部署检查
+## 部署完整性检查
+
+部署脚本会检查：
+
+- Wrangler 是否安装
+- Cloudflare 资源是否存在
+- D1 是否可访问
+- migrations 是否执行
+- Worker 是否成功发布
+- 部署后健康状态
 
 部署完成后访问：
 
@@ -68,7 +101,7 @@ Node.js           = 26.10.0
 /healthz?probe=1
 ```
 
-正常结果应包含：
+正常结果：
 
 ```json
 {
@@ -86,6 +119,16 @@ npm run db:migrate:local
 npm run dev
 ```
 
+## 项目结构
+
+```text
+src/              Worker 源码
+migrations/       D1 数据库迁移
+scripts/          自动部署和检查脚本
+public/           静态资源
+wrangler.toml     Cloudflare 资源配置
+```
+
 ## 核心能力
 
 - Hono + TypeScript + Cloudflare Workers
@@ -98,14 +141,12 @@ npm run dev
 - SEO 路由
 - Sitemap / robots / llms.txt
 
-## Fork / 复制规则
+## 维护原则
 
-本仓库保持白标状态：
+保持仓库可复制：
 
-- 不包含客户名称
-- 不包含城市信息
-- 不包含业务关键词
-- 不包含真实联系方式
-- 不包含生产密钥
-
-复制仓库后，只需要连接新的 Cloudflare Worker，然后执行部署即可。
+- 新环境无需修改代码
+- 不依赖旧 Cloudflare 资源
+- 不提交环境密钥
+- 部署失败必须输出明确原因
+- 文档与部署流程同步更新
