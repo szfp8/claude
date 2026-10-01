@@ -9,7 +9,7 @@
  * 4) 执行 migrations
  * 5) 发布并验收 Worker
  */
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 
@@ -49,12 +49,25 @@ function exitWith(result, label) {
   }
 }
 
+function getD1BindingName() {
+  try {
+    const config = readFileSync(join(root, 'wrangler.toml'), 'utf8')
+    const match = config.match(/binding\s*=\s*["']([^"']+)["']/)
+    return match?.[1] || 'DB'
+  } catch {
+    return 'DB'
+  }
+}
+
 function getProvisionedD1() {
   const result = run(['d1', 'list', '--json'], { capture: true })
   if (result.status !== 0) return null
   try {
     const dbs = JSON.parse(result.stdout || '[]')
-    return Array.isArray(dbs) ? dbs.find((db) => db.name?.includes('db')) : null
+    const binding = getD1BindingName().toLowerCase()
+    return Array.isArray(dbs)
+      ? dbs.find((db) => db.name?.toLowerCase().includes(binding)) || dbs[0]
+      : null
   } catch {
     return null
   }
@@ -70,7 +83,7 @@ function validateD1Resource() {
     console.error('Cloudflare D1 database_id 缺失，无法执行 migration')
     process.exit(1)
   }
-  console.log(`Detected provisioned D1: ${d1.name || 'unknown'} ${d1.uuid || d1.id || ''}`)
+  console.log(`Detected provisioned D1: ${d1.name || 'unknown'} ${d1.uuid || d1.id}`)
   return d1
 }
 
@@ -85,10 +98,9 @@ try {
     process.stdout.write(firstDeploy.stdout || '')
     process.stderr.write(firstDeploy.stderr || '')
     exitWith(firstDeploy, 'Initial resource provisioning deploy')
-    validateD1Resource()
-  } else {
-    validateD1Resource()
   }
+
+  validateD1Resource()
 
   console.log('→ 应用远程 D1 migrations…')
   const migrate = run(['d1', 'migrations', 'apply', 'DB', '--remote', '--config', 'wrangler.toml'])
