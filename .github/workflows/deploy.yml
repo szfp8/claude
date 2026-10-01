@@ -57,15 +57,15 @@ jobs:
 
       - name: Reject GET admin mutation links
         run: |
-          if grep -nE 'href=["'\''][^"'\'']*/admin/[^"'\'']*(delete|rescore|generate|read|content/delete)' src/templates/admin.ts; then
+          if grep -nE 'href=["'\''"][^"'\''"]*/admin/[^"'\''"]*(delete|rescore|generate|read|content/delete)' src/templates/admin.ts; then
             echo "Found a mutation-style admin href; use a POST form instead."
             exit 1
           fi
-          if grep -nE 'form method=["'\'']get["'\''][^>]+action=["'\''][^"'\'']*/admin/[^"'\'']*(delete|rescore|generate|read|content/delete)' src/templates/admin.ts; then
+          if grep -nE 'form method=["'\''"]get["'\''"][^>]+action=["'\''"][^"'\''"]*/admin/[^"'\''"]*(delete|rescore|generate|read|content/delete)' src/templates/admin.ts; then
             echo "Found a GET admin mutation form; use POST instead."
             exit 1
           fi
-          bad="$(grep -nE 'href=["'\''][^"'\'']*/admin/subprojects/[^"'\'']*["'\'']' src/templates/admin.ts | grep -v '/edit' | grep -v '/new' || true)"
+          bad="$(grep -nE 'href=["'\''"][^"'\''"]*/admin/subprojects/[^"'\''"]*["'\''"]' src/templates/admin.ts | grep -v '/edit' | grep -v '/new' || true)"
           if [ -n "$bad" ]; then
             echo "Found a direct admin subproject link that is not an edit/create page:"
             echo "$bad"
@@ -95,7 +95,8 @@ jobs:
 
       - name: Package complete source snapshot
         run: |
-          zip -r "claude-complete-${GITHUB_SHA}.zip" .             -x '.git/*' 'node_modules/*'
+          zip -r "claude-complete-${GITHUB_SHA}.zip" . \
+            -x '.git/*' 'node_modules/*'
 
       - name: Upload complete source ZIP
         uses: actions/upload-artifact@v4
