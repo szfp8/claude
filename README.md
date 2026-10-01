@@ -11,6 +11,8 @@
 ```text
 GitHub Repository
       ↓
+GitHub Actions 校验
+      ↓
 Cloudflare Workers Builds
       ↓
 npm ci
@@ -32,14 +34,6 @@ scripts/deploy-all.mjs
 执行健康检查
 ```
 
-不需要：
-
-- 下载 ZIP
-- 本地安装 Wrangler
-- 手动创建 D1
-- 手动复制 database_id
-- 手动执行 migration
-
 ## Fork / 复制部署规范
 
 复制仓库到新的 GitHub 账号后：
@@ -52,7 +46,7 @@ scripts/deploy-all.mjs
 npm ci
 ```
 
-4. 执行仓库检查：
+4. 检查仓库：
 
 ```bash
 npm run verify
@@ -64,21 +58,36 @@ npm run verify
 npm run deploy
 ```
 
-Cloudflare 会自动完成资源初始化。
+不需要：
 
-## 仓库完整性检查
+- 下载 ZIP
+- 本地安装 Wrangler
+- 手动创建 D1
+- 手动复制 database_id
+- 手动执行 migration
 
-`npm run verify` 会检查：
+## GitHub Actions 自动检查
 
-- 必需源码文件
-- 必需目录
-- package.json 部署脚本
-- TypeScript 部署入口
-- Wrangler 配置
-- D1 binding
-- D1 database_name
+仓库包含：
 
-用于保证 Fork 后仓库可以独立复刻。
+```text
+.github/workflows/verify.yml
+```
+
+每次 push 或 pull request 到 main 时自动执行：
+
+```bash
+npm ci
+npm run validate:complete
+```
+
+用于提前发现：
+
+- 文件缺失
+- 配置错误
+- TypeScript 错误
+- migration 问题
+- 部署脚本问题
 
 ## Cloudflare Workers Builds 配置
 
@@ -102,16 +111,7 @@ Node.js           = 26.10.0
 
 资源绑定统一由 `wrangler.toml` 管理。
 
-## 部署完整性检查
-
-部署流程会检查：
-
-- Wrangler 是否安装
-- Cloudflare 资源是否存在
-- D1 是否可访问
-- migrations 是否执行
-- Worker 是否成功发布
-- 部署后健康状态
+## 部署检查
 
 部署完成后访问：
 
