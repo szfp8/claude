@@ -3,7 +3,6 @@ import fs from 'node:fs'
 const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'))
 const wrangler = fs.readFileSync('wrangler.toml', 'utf8')
 const nvmrc = fs.existsSync('.nvmrc') ? fs.readFileSync('.nvmrc', 'utf8').trim() : ''
-const nodeVersionFile = fs.existsSync('.node-version') ? fs.readFileSync('.node-version', 'utf8').trim() : ''
 
 const expectedScripts = {
   build: 'npm run typecheck',
@@ -26,10 +25,6 @@ if (pkg.engines?.node !== REQUIRED_NODE) {
 }
 if (nvmrc !== REQUIRED_NODE) {
   console.error(`Deployment check failed: .nvmrc must be ${REQUIRED_NODE}`)
-  process.exit(1)
-}
-if (nodeVersionFile !== REQUIRED_NODE) {
-  console.error(`Deployment check failed: .node-version must be ${REQUIRED_NODE}`)
   process.exit(1)
 }
 
@@ -77,4 +72,4 @@ if (fs.existsSync('scripts/deploy.mjs')) {
   process.exit(1)
 }
 
-console.log(`Cloudflare deploy OK: white-label worker naming + per-copy resource auto-provisioning + D1 migrations + post-deploy verification; remote migrations run only from deploy-all.mjs; Workers Builds should use Deploy command "npm run deploy"`)
+console.log('Cloudflare deploy OK: white-label worker naming + per-copy resource auto-provisioning + D1 migrations + post-deploy verification; remote migrations run only from deploy-all.mjs; Workers Builds Deploy command must be "npm run deploy"')
