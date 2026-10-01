@@ -85,14 +85,6 @@ adminRoutes.post('/setup', async (c) => {
   }
   const passwordError = validatePasswordStrength(password, email)
   if (passwordError) return c.html(setupPage(c, passwordError))
-  let jwtSecret: string
-  try {
-    jwtSecret = await getJwtSecret(c.env)
-  } catch (e) {
-    console.error('JWT secret initialization failed', e)
-    return c.html(setupPage(c, '登录密钥初始化失败。请确认 CACHE_KV 已绑定，或在 Cloudflare Secret 中设置 JWT_SECRET。'))
-  }
-
   let hash: string
   try {
     hash = await hashPassword(password, getPbkdf2Iterations(c.env))
@@ -115,6 +107,18 @@ adminRoutes.post('/setup', async (c) => {
   }
 
   if (!created?.id) return c.redirect('/admin/login')
+
+  // 只有真正创建首个管理员的请求才初始化 JWT secret。
+  // 先完成 D1 的原子抢占，再生成/持久化密钥，避免两个并发 setup 请求
+  // 在 CACHE_KV 尚未有密钥时各自生成不同 secret，导致刚签发的会话立即失效。
+  let jwtSecret: string
+  try {
+    jwtSecret = await getJwtSecret(c.env)
+  } catch (e) {
+    console.error('JWT secret initialization failed', e)
+    return c.html(setupPage(c, '登录密钥初始化失败。请确认 CACHE_KV 已绑定，或在 Cloudflare Secret 中设置 JWT_SECRET。'))
+  }
+
   try {
     await saveSetting(c.env, 'seed_state', 'installed')
   } catch (e) {
