@@ -33,7 +33,7 @@ const requiredConfig = [
   ['main', /^main\s*=\s*"src\/index\.ts"\s*$/m],
   ['build command', /\[build\][\s\S]*?command\s*=\s*"npm run build"/],
   ['assets', /directory\s*=\s*"\.\/public"[\s\S]*?binding\s*=\s*"ASSETS"/],
-  ['D1 DB binding', /binding\s*=\s*"DB"[\s\S]*?migrations_dir\s*=\s*"migrations"/],
+  ['D1 DB binding', /\[\[d1_databases\]\][\s\S]*?binding\s*=\s*"DB"[\s\S]*?migrations_dir\s*=\s*"migrations"/],
   ['KV binding', /\[\[kv_namespaces\]\][\s\S]*?binding\s*=\s*"CACHE_KV"/],
   ['R2 binding', /\[\[r2_buckets\]\][\s\S]*?binding\s*=\s*"R2_MEDIA"/],
   ['Workers AI binding', /\[ai\][\s\S]*?binding\s*=\s*"AI"/],
@@ -46,12 +46,16 @@ for (const [label, re] of requiredConfig) {
   }
 }
 
-// database_name is allowed because deploy-all.mjs uses it as the stable target
-// for migrations after first-time resource provisioning.
-// It must not require a manually copied database_id.
+// Reusable repositories must not pin Cloudflare account resources.
+// database_name/database_id can break fresh account provisioning because
+// Cloudflare Workers Builds may create resources using the current Worker name.
 if (/database_id\s*=/.test(wrangler) && !/database_id\s*=\s*""/.test(wrangler)) {
   console.error('Deployment check failed: database_id must not be hardcoded for reusable deployments')
   process.exit(1)
+}
+
+if (/database_name\s*=/.test(wrangler)) {
+  console.warn('database_name detected: deploy-all must resolve resources dynamically for fresh copies')
 }
 
 if (/bucket_name\s*=/.test(wrangler) && !/bucket_name\s*=\s*"claude-r2-media"/.test(wrangler)) {
