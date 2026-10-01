@@ -24,6 +24,68 @@
 
 ---
 
+## v1.0.0 Deployment Checklist
+
+Before deploy:
+
+```text
+[x] GitHub repository connected
+[x] Cloudflare Workers Build enabled
+[x] Node.js 26.10
+[x] npm ci success
+[x] npm run doctor success
+[x] npm run verify success
+```
+
+Deploy:
+
+```text
+[x] npm run deploy
+```
+
+After deploy:
+
+```text
+[x] Worker URL available
+[x] /healthz?probe=1
+[x] D1 schema ready
+[x] Admin setup available
+```
+
+---
+
+## v1.0.0 发布流程
+
+```text
+GitHub Fork
+      |
+      v
+Connect Cloudflare
+      |
+      v
+Workers Build
+      |
+      v
+npm run doctor
+      |
+      v
+npm run verify
+      |
+      v
+npm run deploy
+      |
+      v
+D1/KV/R2 自动创建
+      |
+      v
+Migration
+      |
+      v
+Worker Online
+```
+
+---
+
 ## 快速部署流程
 
 完整部署链路：
@@ -128,8 +190,6 @@ Deploy command = npm run deploy
 Node.js = 26.10.0
 ```
 
-部署时由 Cloudflare 自动执行构建和发布。
-
 ---
 
 ## D1 数据库配置
@@ -140,60 +200,17 @@ Node.js = 26.10.0
 binding = "DB"
 ```
 
-不要提交固定数据库 ID：
-
-```toml
-database_id = "xxx"
-```
-
-原因：
-
-- 不同 Cloudflare 账号资源 ID 不同
-- Fork 后必须创建新数据库
-- 防止连接旧生产环境
-
-数据库迁移由部署流程自动执行。
+不要提交固定数据库 ID。
 
 ---
 
 ## 常用命令
 
-### 环境诊断
-
 ```bash
 npm run doctor
-```
-
-检查：
-
-- Node.js 版本
-- Wrangler 状态
-- 部署配置
-- 环境变量
-
-### 仓库验证
-
-```bash
 npm run verify
-```
-
-检查：
-
-- 必需目录
-- 必需脚本
-- Cloudflare 配置
-- D1 binding
-- migration 文件
-
-### 类型检查
-
-```bash
+npm run deploy
 npm run typecheck
-```
-
-### 完整验证
-
-```bash
 npm run validate:complete
 ```
 
@@ -212,44 +229,7 @@ wrangler.toml       Cloudflare 配置
 
 ---
 
-## 部署问题排查
-
-### 1. D1 migration 失败
-
-执行：
-
-```bash
-npm run doctor
-npm run verify
-```
-
-确认：
-
-- DB binding 存在
-- migrations 目录存在
-- 没有硬编码 database_id
-
----
-
-### 2. Worker 名称异常
-
-Cloudflare Workers Builds 可能覆盖 Worker 名称。
-
-部署脚本优先读取：
-
-```text
-WRANGLER_CI_OVERRIDE_NAME
-CLOUDFLARE_WORKER_NAME
-WORKER_NAME
-```
-
-避免白标项目名称覆盖实际部署目标。
-
----
-
-## 发布检查清单
-
-提交代码前必须通过：
+## 发布标准
 
 ```bash
 npm run doctor
@@ -258,18 +238,11 @@ npm run typecheck
 npm run validate:complete
 ```
 
-发布标准：
+要求：
 
-- ✅ 新 Cloudflare 账号可以部署
-- ✅ 不依赖旧资源
-- ✅ 敏感配置不进入 Git
-- ✅ 部署错误可以定位
-- ✅ 文档与代码保持同步
+- 新环境可复制
+- 不绑定旧资源
+- 部署错误可诊断
+- 文档与代码同步
 
----
-
-## 版本说明
-
-当前文档版本：v1
-
-本 README 用于说明项目架构、复制部署流程、环境配置和故障排查方法。
+当前版本：v1.0.0
