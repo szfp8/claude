@@ -15,6 +15,8 @@ Cloudflare Workers Builds
       ↓
 npm ci
       ↓
+npm run verify
+      ↓
 npm run deploy
       ↓
 scripts/deploy-all.mjs
@@ -44,23 +46,39 @@ scripts/deploy-all.mjs
 
 1. 创建 Cloudflare Workers Build 项目
 2. 连接新的 GitHub Repository
-3. 设置部署命令：
+3. 安装依赖：
+
+```bash
+npm ci
+```
+
+4. 执行仓库检查：
+
+```bash
+npm run verify
+```
+
+5. 部署：
 
 ```bash
 npm run deploy
 ```
 
-4. Cloudflare 会自动完成资源初始化。
+Cloudflare 会自动完成资源初始化。
 
-仓库不保存：
+## 仓库完整性检查
 
-- API Key
-- Token
-- 生产密码
-- 客户信息
-- 业务私有配置
+`npm run verify` 会检查：
 
-所有环境变量和 Secret 应通过 Cloudflare Dashboard 或 CI Secret 配置。
+- 必需源码文件
+- 必需目录
+- package.json 部署脚本
+- TypeScript 部署入口
+- Wrangler 配置
+- D1 binding
+- D1 database_name
+
+用于保证 Fork 后仓库可以独立复刻。
 
 ## Cloudflare Workers Builds 配置
 
@@ -86,7 +104,7 @@ Node.js           = 26.10.0
 
 ## 部署完整性检查
 
-部署脚本会检查：
+部署流程会检查：
 
 - Wrangler 是否安装
 - Cloudflare 资源是否存在
@@ -114,39 +132,8 @@ Node.js           = 26.10.0
 
 ```bash
 npm ci
+npm run verify
 npm run build
 npm run db:migrate:local
 npm run dev
 ```
-
-## 项目结构
-
-```text
-src/              Worker 源码
-migrations/       D1 数据库迁移
-scripts/          自动部署和检查脚本
-public/           静态资源
-wrangler.toml     Cloudflare 资源配置
-```
-
-## 核心能力
-
-- Hono + TypeScript + Cloudflare Workers
-- D1 数据库
-- KV 缓存
-- R2 媒体存储
-- Workers AI
-- 中文白标前台
-- 页面管理
-- SEO 路由
-- Sitemap / robots / llms.txt
-
-## 维护原则
-
-保持仓库可复制：
-
-- 新环境无需修改代码
-- 不依赖旧 Cloudflare 资源
-- 不提交环境密钥
-- 部署失败必须输出明确原因
-- 文档与部署流程同步更新
