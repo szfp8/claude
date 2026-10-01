@@ -511,7 +511,7 @@ export function renderLoginPage(error?: string): string {
   <input name="email" type="email" autocomplete="username" placeholder="管理员邮箱" required />
   <input name="password" type="password" autocomplete="current-password" placeholder="密码" style="margin-bottom:14px" required />
   <button class="btn" type="submit">登录</button>
-  <p style="text-align:center;margin-top:12px;font-size:12px"><a href="/admin/setup" style="color:var(--muted)">首次部署？点此初始化管理员账号</a></p>
+  <p style="text-align:center;margin-top:12px;font-size:12px;color:var(--muted)">首次使用会自动进入管理员初始化。</p>
 </form>
 </body></html>`
 }
@@ -523,7 +523,7 @@ export function renderSetupPage(error?: string, options: { requireToken?: boolea
 <body class="auth-page">
 <form method="post" action="/admin/setup" class="card auth-card">
   <h2>初始化管理员账号</h2>
-  <p style="color:var(--muted);font-size:13px">首次部署检测到还没有管理员账号，创建一个即可直接登录后台，全程无需命令行。</p>
+  <p style="color:var(--muted);font-size:13px">首次使用请创建管理员账号，创建后会自动登录后台。</p>
   ${error ? `<p style="color:#e5484d;font-size:13px">${escapeHtml(error)}</p>` : ''}
   ${options.requireToken ? '<input name="setup_token" type="password" autocomplete="off" placeholder="初始化令牌（Cloudflare Secret：SETUP_TOKEN）" required />' : ''}
   <input name="email" type="email" autocomplete="username" placeholder="管理员邮箱" required />
