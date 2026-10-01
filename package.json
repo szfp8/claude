@@ -18,6 +18,7 @@
     "smoke:deploy": "node scripts/smoke-deploy.mjs",
     "postdeploy:check": "node scripts/postdeploy-check.mjs",
     "test": "node --test",
+    "verify": "node scripts/verify-repository.mjs",
     "check:routes": "node scripts/check-admin-routes.mjs",
     "check:public": "node scripts/check-public-routes.mjs",
     "check:seo-geo": "node scripts/check-seo-geo.mjs",
@@ -25,7 +26,7 @@
     "check:deployment": "node scripts/check-deployment.mjs",
     "check:migrations": "node scripts/check-migrations.mjs",
     "check:contact-fields": "node scripts/check-contact-fields.mjs",
-    "validate:complete": "npm run typecheck && npm run check:deployment && npm run check:migrations && npm run check:whitelabel && npm run check:contact-fields && npm test"
+    "validate:complete": "npm run verify && npm run typecheck && npm run check:deployment && npm run check:migrations && npm run check:whitelabel && npm run check:contact-fields && npm test"
   },
   "dependencies": {
     "hono": "4.13.8"
@@ -38,25 +39,10 @@
   "cloudflare": {
     "bindings": {
       "JWT_SECRET": {
-        "description": "【可留空】登录会话签名密钥。留空时系统会在 CACHE_KV 中自动生成并保存 256-bit 随机密钥，一键部署无需手填。生产环境若希望密钥不依赖 KV，可事后在 Dashboard 自行填写随机长串。"
+        "description": "【可留空】登录会话签名密钥。留空时系统会在 CACHE_KV 中自动生成并保存 256-bit 随机密钥。"
       },
       "SETUP_TOKEN": {
-        "description": "【可留空】初始化门禁令牌。留空则 /admin/setup 无需令牌（部署后请尽快创建管理员）。填写后创建首个管理员必须输入相同令牌，防陌生人抢先初始化；建完管理员可删除此 Secret。"
-      },
-      "PBKDF2_ITERATIONS": {
-        "description": "【可留空】密码哈希迭代次数，默认 5000（Free 计划）。付费计划可填 100000。"
-      },
-      "INDEXNOW_KEY": {
-        "description": "【可留空】IndexNow Key；不用 IndexNow 时不要填。"
-      },
-      "EXTERNAL_AI_API_KEY": {
-        "description": "【可留空】第三方 OpenAI-compatible API Key；只用 Workers AI 时不要填。"
-      },
-      "RESEND_API_KEY": {
-        "description": "【可留空】Resend 邮件回复 API Key；不需要邮箱回复时不要填。"
-      },
-      "GOOGLE_SERVICE_ACCOUNT_JSON": {
-        "description": "【可留空】仅特定 Google 能力需要；普通文章用 Sitemap/Search Console 即可，不要填。"
+        "description": "【可留空】初始化门禁令牌。"
       }
     }
   },
