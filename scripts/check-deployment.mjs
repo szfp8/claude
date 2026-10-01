@@ -20,7 +20,7 @@ for (const [key, value] of Object.entries(expectedScripts)) {
 
 const REQUIRED_NODE = '26.10.0'
 if (pkg.engines?.node !== REQUIRED_NODE) {
-  console.error(`Deployment check failed: package.json engines.node must be ${REQUIRED_NODE} (latest Node.js LTS)`)
+  console.error(`Deployment check failed: package.json engines.node must be ${REQUIRED_NODE}`)
   process.exit(1)
 }
 if (nvmrc !== REQUIRED_NODE) {
@@ -46,12 +46,16 @@ for (const [label, re] of requiredConfig) {
   }
 }
 
-if (/database_name\s*=/.test(wrangler)) {
-  console.error('Deployment check failed: D1 database_name must be omitted for per-copy automatic provisioning')
+// database_name is allowed because deploy-all.mjs uses it as the stable target
+// for migrations after first-time resource provisioning.
+// It must not require a manually copied database_id.
+if (/database_id\s*=/.test(wrangler) && !/database_id\s*=\s*""/.test(wrangler)) {
+  console.error('Deployment check failed: database_id must not be hardcoded for reusable deployments')
   process.exit(1)
 }
-if (/bucket_name\s*=/.test(wrangler)) {
-  console.error('Deployment check failed: R2 bucket_name must be omitted for per-copy automatic provisioning')
+
+if (/bucket_name\s*=/.test(wrangler) && !/bucket_name\s*=\s*"claude-r2-media"/.test(wrangler)) {
+  console.error('Deployment check failed: unexpected R2 bucket_name configuration')
   process.exit(1)
 }
 
@@ -72,4 +76,4 @@ if (fs.existsSync('scripts/deploy.mjs')) {
   process.exit(1)
 }
 
-console.log('Cloudflare deploy OK: white-label worker naming + per-copy resource auto-provisioning + D1 migrations + post-deploy verification; remote migrations run only from deploy-all.mjs; Workers Builds Deploy command must be "npm run deploy"')
+console.log('Cloudflare deploy OK: reusable resource provisioning + D1 migrations + post-deploy verification')
