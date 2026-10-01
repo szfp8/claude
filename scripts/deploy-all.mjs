@@ -4,15 +4,12 @@
  *
  * 一次执行 npm run deploy 即完成：
  *   1) 检查远程 D1 是否已经存在
- *   2) 首次部署时让 Wrangler 自动创建当前 Worker 对应的 D1/KV/R2/AI 资源
- *   3) 立即应用全部远程 D1 migrations
- *   4) 再发布一次已经完成数据库初始化的 Worker
- *   5) 自动执行部署后验收；若存在 workers.dev URL，再执行 /healthz?probe=1
- *
- * Workers Builds 连接已有 Worker 时由 Cloudflare 提供
- * WRANGLER_CI_OVERRIDE_NAME，因此仓库不再绑定 claude 这个项目名。
+ *   2) 首次部署时让 Wrangler 自动创建当前 Worker 对应资源
+ *   3) 首次部署后重新读取 D1 binding，再执行 migrations
+ *   4) 发布已经完成数据库初始化的 Worker
+ *   5) 执行部署后验收
  */
-import { existsSync } from 'node:fs'
+import { existsSync, writeFileSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 
@@ -40,9 +37,7 @@ function run(args, options = {}) {
 function deployArgs() {
   const args = ['deploy', '--config', 'wrangler.toml']
   const explicitName = process.env.CLOUDFLARE_WORKER_NAME || process.env.WORKER_NAME
-  if (explicitName && !process.env.WRANGLER_CI_OVERRIDE_NAME) {
-    args.push('--name', explicitName)
-  }
+  if (explicitName && !process.env.WRANGLER_CI_OVERRIDE_NAME) args.push('--name', explicitName)
   return args
 }
 
@@ -54,17 +49,33 @@ function exitWith(result, label) {
   }
 }
 
+function getProvisionedD1() {
+  const result = run(['d1', 'list', '--json'], { capture: true })
+  if (result.status !== 0) return null
+  try {
+    const dbs = JSON.parse(result.stdout || '[]')
+    return Array.isArray(dbs) ? dbs.find((db) => db.name?.includes('db')) : null
+  } catch {
+    return null
+  }
+}
+
 try {
   const probe = run(['d1', 'migrations', 'list', 'DB', '--remote', '--config', 'wrangler.toml'], { capture: true })
-
   let initialDeployOutput = ''
+
   if (probe.status !== 0) {
-    console.log('D1 尚未就绪，先部署一次以自动创建当前 Worker 所需资源（D1/KV/R2/AI）…')
+    console.log('D1 尚未就绪，先部署一次创建 Cloudflare 资源…')
     const firstDeploy = run(deployArgs(), { capture: true })
-    initialDeployOutput = [firstDeploy.stdout || '', firstDeploy.stderr || ''].join('\\n')
+    initialDeployOutput = [firstDeploy.stdout || '', firstDeploy.stderr || ''].join('\n')
     process.stdout.write(firstDeploy.stdout || '')
     process.stderr.write(firstDeploy.stderr || '')
     exitWith(firstDeploy, 'Initial resource provisioning deploy')
+
+    const d1 = getProvisionedD1()
+    if (d1) {
+      console.log(`Detected provisioned D1: ${d1.name || 'unknown'} ${d1.uuid || d1.id || ''}`)
+    }
   }
 
   console.log('→ 应用远程 D1 migrations…')
@@ -78,18 +89,18 @@ try {
   exitWith(deploy, 'Final Worker deploy')
 
   const deployOutput = [initialDeployOutput, deploy.stdout || '', deploy.stderr || ''].join('\n')
-  console.log('→ 执行部署后自动验收/初始化检查…')
+  console.log('→ 执行部署后自动验收检查…')
   const postcheck = spawnSync(
     process.platform === 'win32' ? 'npm.cmd' : 'npm',
     ['run', 'postdeploy:check', '--', deployOutput],
     { cwd: root, encoding: 'utf8', stdio: 'inherit', shell: process.platform === 'win32', env: process.env },
   )
   if (postcheck.status !== 0) {
-    console.error('部署后验收失败：Worker 已发布，但初始化/健康检查未通过')
+    console.error('部署后验收失败')
     process.exit(postcheck.status || 1)
   }
 
-  console.log('✔ Cloudflare 一键部署闭环完成：Worker + D1 migration + 自动验收全部通过')
+  console.log('✔ Cloudflare 一键部署闭环完成')
 } catch (error) {
   console.error('deploy-all 失败：', error?.message || error)
   process.exit(1)
