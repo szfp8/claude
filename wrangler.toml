@@ -1,8 +1,8 @@
 keep_vars = true
 
-# 白标模板不绑定具体客户/项目名称。
-# Workers Builds 连接已有 Worker 时会自动注入 WRANGLER_CI_OVERRIDE_NAME，
-# Wrangler 用该名称部署到当前 Dashboard Worker；本地部署可设置 CLOUDFLARE_WORKER_NAME。
+# 白标模板不绑定客户名称。
+# Cloudflare Workers Builds 会注入实际 Worker 名称。
+# deploy-all.mjs 负责检查并连接当前环境资源。
 name = "white-label-cms"
 main = "src/index.ts"
 compatibility_date = "2026-09-29"
@@ -18,11 +18,10 @@ enabled = true
 directory = "./public"
 binding = "ASSETS"
 
-# Wrangler 4 automatic provisioning creates these resources on first deploy.
-# database_name keeps later remote migrations attached to the auto-created D1.
+# D1 binding is stable. database_name is intentionally not hardcoded.
+# Each Cloudflare account gets its own provisioned D1 resource.
 [[d1_databases]]
 binding = "DB"
-database_name = "claude-db"
 migrations_dir = "migrations"
 migrations_pattern = "migrations/*.sql"
 
@@ -38,5 +37,4 @@ binding = "AI"
 [triggers]
 crons = ["*/5 * * * *"]
 
-# Runtime vars SITE_NAME / SITE_URL / DEFAULT_CITY are intentionally not stored here.
-# Secrets are configured in Cloudflare/GitHub, not committed here.
+# Runtime vars and secrets are configured in Cloudflare/GitHub.
