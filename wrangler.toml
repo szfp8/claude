@@ -5,17 +5,13 @@ keep_vars = true
 # Wrangler 用该名称部署到当前 Dashboard Worker；本地部署可设置 CLOUDFLARE_WORKER_NAME。
 name = "white-label-cms"
 main = "src/index.ts"
-# 2026-08-04 起 nodejs_compat 由兼容日期默认开启；保留显式 flag 便于旧文档与本地一致。
 compatibility_date = "2026-09-29"
 compatibility_flags = ["nodejs_compat"]
 
-# Workers Builds 的 Build command 只负责构建；D1 迁移由 package.json 的 deploy
-# 脚本统一处理，避免把远程 D1 迁移放在 Worker 打包阶段。
 [build]
 command = "npm run build"
 
 [cache]
-# 让公共 HTML/R2 响应可由 Cloudflare 在 Worker 执行前直接缓存，降低 D1/KV/CPU 消耗。
 enabled = true
 
 [assets]
@@ -23,8 +19,10 @@ directory = "./public"
 binding = "ASSETS"
 
 # Wrangler 4 automatic provisioning creates these resources on first deploy.
+# database_name keeps later remote migrations attached to the auto-created D1.
 [[d1_databases]]
 binding = "DB"
+database_name = "claude-db"
 migrations_dir = "migrations"
 migrations_pattern = "migrations/*.sql"
 
@@ -38,17 +36,7 @@ binding = "R2_MEDIA"
 binding = "AI"
 
 [triggers]
-# 每 5 分钟唤醒一次；Worker 按后台设置的时间只执行每日新闻任务。
 crons = ["*/5 * * * *"]
 
-
 # Runtime vars SITE_NAME / SITE_URL / DEFAULT_CITY are intentionally not stored here.
-# Set them in Cloudflare Dashboard -> Worker -> Settings -> Variables and Secrets (Production).
-# This prevents a GitHub/Wrangler deploy from resetting Dashboard values.
-
 # Secrets are configured in Cloudflare/GitHub, not committed here.
-# JWT_SECRET
-# SETUP_TOKEN (optional, recommended: gate /admin/setup until the first admin exists)
-# PBKDF2_ITERATIONS (optional variable: 5000 default for Free plan, up to 100000 on paid plans)
-# INDEXNOW_KEY (optional)
-# GOOGLE_SERVICE_ACCOUNT_JSON (optional)
