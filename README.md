@@ -50,6 +50,7 @@ npm ci
 
 ```bash
 npm run verify
+npm run doctor
 ```
 
 5. 部署：
@@ -89,6 +90,19 @@ npm run validate:complete
 - migration 问题
 - 部署脚本问题
 
+## D1 自动绑定规则
+
+首次部署时，Wrangler 会创建 Cloudflare 资源。
+
+后续 migration 使用 `wrangler.toml` 中配置的：
+
+```toml
+database_name = "claude-db"
+binding = "DB"
+```
+
+部署脚本会优先精确匹配 `database_name`，避免新 Cloudflare 账号中存在多个 D1 时错误选择数据库。
+
 ## Cloudflare Workers Builds 配置
 
 ```text
@@ -111,6 +125,35 @@ Node.js           = 26.10.0
 
 资源绑定统一由 `wrangler.toml` 管理。
 
+## 常见部署问题
+
+### D1 migration failed
+
+检查：
+
+```bash
+npm run doctor
+npm run verify
+```
+
+确认：
+
+- wrangler.toml 存在 database_name
+- DB binding 名称正确
+- migrations 目录存在
+
+### Worker name mismatch
+
+Cloudflare Workers Builds 可能覆盖 Worker 名称，这是正常行为。
+
+模板保留：
+
+```toml
+name = "white-label-cms"
+```
+
+用于本地白标开发；连接 Cloudflare Worker 后由 CI 环境名称管理。
+
 ## 部署检查
 
 部署完成后访问：
@@ -132,6 +175,7 @@ Node.js           = 26.10.0
 
 ```bash
 npm ci
+npm run doctor
 npm run verify
 npm run build
 npm run db:migrate:local
