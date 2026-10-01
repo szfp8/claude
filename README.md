@@ -36,12 +36,55 @@ Workers Builds 与仓库对齐：
 ```text
 Production branch = main
 Root directory    = /（留空）
-Build command     =（留空，由 wrangler.toml [build] 执行）
-Deploy command    = npx wrangler deploy
+Build command     =（留空）
+Deploy command    = npm run deploy
 Node.js           = 26.10.0（.nvmrc）
 ```
 
-向导细节：`docs/CF-ONE-CLICK.md`。
+> **重要：Deploy command 需要在 Cloudflare Dashboard 中手动修改一次。**
+>
+> Cloudflare Workers Builds 默认值是 `npx wrangler deploy`，它只部署 Worker，不会调用仓库的 `scripts/deploy-all.mjs`，首次部署时可能导致 D1 schema 没有执行 migrations。
+>
+> 请按下面步骤设置：
+>
+> 1. 打开 Cloudflare Dashboard → **Workers & Pages** → 选择当前 Worker。
+> 2. 进入 **Settings / Build configuration（构建配置）**。
+> 3. 找到 **Deploy command**。
+> 4. 将默认的 `npx wrangler deploy` 修改为：
+>
+>    ```text
+>    npm run deploy
+>    ```
+>
+> 5. 确认 **Production branch = `main`**。
+> 6. **Root directory** 保持 `/`（留空）。
+> 7. **Build command** 保持留空即可。
+> 8. **Node.js** 使用 `26.10.0`，仓库已通过 `.nvmrc` 和 `package.json` 约束。
+> 9. 保存配置后重新触发一次部署。
+>
+> 部署命令改为 `npm run deploy` 后，实际流程为：
+>
+> ```text
+> npm run deploy
+>   ↓
+> scripts/deploy-all.mjs
+>   ↓
+> 检查远程 D1
+>   ↓
+> 首次部署/资源准备
+>   ↓
+> 执行远程 D1 migrations
+>   ↓
+> 再次部署 Worker
+>   ↓
+> postdeploy:check
+> ```
+>
+> 部署完成后打开 `/healthz?probe=1`，确认 `d1_schema: true` 且 `missing_tables: []`，再进入 `/admin/setup`。
+>
+> **JWT_SECRET 不需要因为这一步手动填写。** 当前模板会在未配置 `JWT_SECRET` 时通过 `CACHE_KV` 自动生成并保存会话密钥。
+>
+> 向导细节：`docs/CF-ONE-CLICK.md`；完整部署架构：`docs/DEPLOYMENT-ARCHITECTURE.md`。
 
 ## 2. Secrets（均可留空）
 
