@@ -2,14 +2,14 @@
 /**
  * Cloudflare Workers 白标一键部署闭环。
  *
- * 一次执行 npm run deploy 即完成：
- *   1) 检查远程 D1 是否已经存在
- *   2) 首次部署时让 Wrangler 自动创建当前 Worker 对应资源
- *   3) 首次部署后重新读取 D1 binding，再执行 migrations
- *   4) 发布已经完成数据库初始化的 Worker
- *   5) 执行部署后验收
+ * npm run deploy:
+ * 1) 检查 D1 状态
+ * 2) 首次部署创建 Cloudflare 资源
+ * 3) 校验实际 D1 resource 与 DB binding
+ * 4) 执行 migrations
+ * 5) 发布并验收 Worker
  */
-import { existsSync, writeFileSync, readFileSync } from 'node:fs'
+import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 
@@ -60,6 +60,20 @@ function getProvisionedD1() {
   }
 }
 
+function validateD1Resource() {
+  const d1 = getProvisionedD1()
+  if (!d1) {
+    console.error('Cloudflare D1 resource 未找到，请检查 DB binding 和 wrangler 配置')
+    process.exit(1)
+  }
+  if (!d1.uuid && !d1.id) {
+    console.error('Cloudflare D1 database_id 缺失，无法执行 migration')
+    process.exit(1)
+  }
+  console.log(`Detected provisioned D1: ${d1.name || 'unknown'} ${d1.uuid || d1.id || ''}`)
+  return d1
+}
+
 try {
   const probe = run(['d1', 'migrations', 'list', 'DB', '--remote', '--config', 'wrangler.toml'], { capture: true })
   let initialDeployOutput = ''
@@ -71,11 +85,9 @@ try {
     process.stdout.write(firstDeploy.stdout || '')
     process.stderr.write(firstDeploy.stderr || '')
     exitWith(firstDeploy, 'Initial resource provisioning deploy')
-
-    const d1 = getProvisionedD1()
-    if (d1) {
-      console.log(`Detected provisioned D1: ${d1.name || 'unknown'} ${d1.uuid || d1.id || ''}`)
-    }
+    validateD1Resource()
+  } else {
+    validateD1Resource()
   }
 
   console.log('→ 应用远程 D1 migrations…')
