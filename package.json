@@ -9,6 +9,7 @@
     "predeploy": "node scripts/predeploy.mjs",
     "deploy": "node scripts/deploy-all.mjs",
     "deploy:all": "node scripts/deploy-all.mjs",
+    "doctor": "node scripts/doctor.mjs",
     "setup:cloudflare": "node scripts/setup-cloudflare.mjs",
     "db:migrate:remote": "wrangler d1 migrations apply DB --remote",
     "db:migrate:local": "wrangler d1 migrations apply DB --local",
@@ -26,7 +27,7 @@
     "check:deployment": "node scripts/check-deployment.mjs",
     "check:migrations": "node scripts/check-migrations.mjs",
     "check:contact-fields": "node scripts/check-contact-fields.mjs",
-    "validate:complete": "npm run verify && npm run typecheck && npm run check:deployment && npm run check:migrations && npm run check:whitelabel && npm run check:contact-fields && npm test"
+    "validate:complete": "npm run doctor && npm run verify && npm run typecheck && npm run check:deployment && npm run check:migrations && npm run check:whitelabel && npm run check:contact-fields && npm test"
   },
   "dependencies": {
     "hono": "4.13.8"
