@@ -43,7 +43,7 @@ import { renderArticlePage } from '../templates/public'
 import {
   renderLoginPage, renderSetupPage, renderRecoverPage, renderDashboard, renderArticlesList, renderArticleForm, renderArticleAiPreview,
   renderCitiesList, renderKeywordsList, renderKeywordForm, renderMessagesList, renderNewsSourcesList,
-  renderSeoPage, renderSettingsPage, renderCityForm, renderServiceForm, renderCollectionLogsList,
+  renderSeoPage, renderGeoPage, renderSocialDistributionPage, renderSettingsPage, renderCityForm, renderServiceForm, renderCollectionLogsList,
   renderSystemPage, renderAiSettingsPage, renderAiPromptsPage, renderAdminLayout, renderWechatEditor, renderSocialHub, renderSocialEditor, renderMediaPage, renderAdminUsersPage, renderPageSettingsPage, renderSubprojectsList, renderSubprojectForm,
 } from '../templates/admin'
 
@@ -3328,6 +3328,40 @@ adminRoutes.post('/seo/auto-fill', async (c) => {
     console.error('seo auto-fill failed', e)
     return c.redirect('/admin/keywords?error=' + encodeURIComponent('全部页面 SEO 规范失败：' + errorMessage(e, '未知错误')))
   }
+})
+
+// ---- GEO / AI 搜索 ----
+adminRoutes.get('/geo', async (c) => {
+  const rows = (await c.env.DB.prepare("SELECT key, value FROM settings WHERE key IN ('geo_ai_crawlers_enabled','geo_llms_enabled')").all()).results as any[]
+  const map = new Map(rows.map((row) => [String(row.key), String(row.value || '')]))
+  return c.html(renderGeoPage({
+    siteUrl: resolveSiteUrl(c),
+    aiCrawlersEnabled: map.get('geo_ai_crawlers_enabled') !== '0',
+    llmsEnabled: map.get('geo_llms_enabled') !== '0',
+    saved: c.req.query('saved') === '1',
+  }))
+})
+
+adminRoutes.post('/geo', async (c) => {
+  const b = await c.req.parseBody()
+  await saveSetting(c.env, 'geo_ai_crawlers_enabled', b.geo_ai_crawlers_enabled === 'on' ? '1' : '0')
+  await saveSetting(c.env, 'geo_llms_enabled', b.geo_llms_enabled === 'on' ? '1' : '0')
+  c.executionCtx.waitUntil(purgeCacheAll(c.executionCtx))
+  return c.redirect('/admin/geo?saved=1')
+})
+
+// ---- 国内内容分发总览 ----
+adminRoutes.get('/social', async (c) => {
+  const rows = (await c.env.DB.prepare(
+    "SELECT a.id, a.title, a.published_at, " +
+    "MAX(CASE WHEN s.platform='douyin' THEN s.status ELSE 'not_synced' END) AS douyin_status, " +
+    "MAX(CASE WHEN s.platform='kuaishou' THEN s.status ELSE 'not_synced' END) AS kuaishou_status, " +
+    "MAX(CASE WHEN s.platform='xiaohongshu' THEN s.status ELSE 'not_synced' END) AS xiaohongshu_status, " +
+    "MAX(CASE WHEN s.platform='bilibili' THEN s.status ELSE 'not_synced' END) AS bilibili_status " +
+    "FROM articles a LEFT JOIN social_posts s ON s.article_id=a.id " +
+    "WHERE a.status='published' GROUP BY a.id ORDER BY a.published_at DESC, a.id DESC LIMIT 100"
+  ).all()).results as any[]
+  return c.html(renderSocialDistributionPage(rows, PLATFORM_LIST))
 })
 
 // ---- SEO / 搜索引擎推送 ----
