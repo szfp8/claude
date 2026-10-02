@@ -114,3 +114,40 @@ npm run deploy
 手动路径和 Cloudflare Workers Builds 共用同一个 `npm run deploy`。
 
 当前版本：v1.0.0
+
+
+## 6. 后台第一次设置顺序
+
+```text
+/admin/setup
+  → 创建唯一管理员
+/admin/settings
+  → 白标主题 / 站点名称 / 服务 / 行业关键词
+  → IndexNow / Resend / Google（按需）
+/admin/ai-settings
+  → Workers AI 默认即可；只有外部 AI 才填写 API Key
+/admin/ai-prompts
+  → 检查默认规则 → 按需补充 → 测试
+/admin/keywords
+  → 候选词 → 矩阵 → 机会分 → 页面 SEO
+/admin/seo
+  → Sitemap / Robots / 推送日志
+```
+
+### 忘记管理员密码
+
+登录页的「忘记密码？」进入 `/admin/recover`，使用首次部署时保存的 `SETUP_TOKEN` 重置唯一管理员邮箱和密码。遗失令牌时，先在 Cloudflare Worker → Settings → Variables and Secrets 更新 `SETUP_TOKEN`，再恢复。
+
+### SEO 五个操作不要混用
+
+- **重新计算机会分**：只算分，不改页面 SEO。
+- **选择清理生产库**：删除明确无效/重复/低质量生产数据，属于破坏性操作。
+- **AI生成候选词**：维护全站候选词库，不直接覆盖页面 SEO。
+- **生成/更新矩阵**：维护城市 × 服务关键词矩阵。
+- **规范全部页面 SEO**：批量处理实际页面标题、描述和 3-5 个主题词。
+
+### Sitemap
+
+`/sitemap.xml` 是公开 URL 清单，不是“搜索引擎已经收录的页面列表”。只有公开页面、已发布文章、符合公开条件的城市/服务/城市×服务落地页等才会进入；草稿、待审核、隐藏、外站跳转以及不符合机会分条件的落地页不会进入。
+
+搜索引擎是否抓取和收录，要在对应站长平台 / Search Console 查看。后台 `/admin/seo` 用来查看 Sitemap、Robots、通知渠道和推送日志。
