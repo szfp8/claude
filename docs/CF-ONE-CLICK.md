@@ -51,33 +51,38 @@ Cloudflare 页面如果出现：
 
 **不要把其他账号的 database ID、KV ID 写进仓库。**
 
-## 4. Secrets
+## 4. 首次部署 Secret 与后台配置
 
-首次部署需要 Cloudflare 页面提供的 Secret 值。
+首次部署不要把所有第三方服务密钥都塞进 Cloudflare。
+
+**真正建议首次保留的 Secret：**
 
 ```text
-JWT_SECRET
 SETUP_TOKEN
-PBKDF2_ITERATIONS
-INDEXNOW_KEY
-EXTERNAL_AI_API_KEY
-RESEND_API_KEY
-GOOGLE_SERVICE_ACCOUNT_JSON
 ```
 
-推荐：
+生成：
 
-```text
-JWT_SECRET                  = openssl rand -hex 32
-SETUP_TOKEN                 = openssl rand -hex 32
-PBKDF2_ITERATIONS           = 100000
-INDEXNOW_KEY                = openssl rand -hex 16
-EXTERNAL_AI_API_KEY         = unused（不用外部 AI 时）
-RESEND_API_KEY              = unused（不用邮件时）
-GOOGLE_SERVICE_ACCOUNT_JSON = {}（不用 Google 时）
+```bash
+openssl rand -hex 32
 ```
 
-`unused` / `{}` 只是 Cloudflare UI 强制字段时的安全占位值，不代表对应服务已经启用。启用服务前必须替换成真实配置。
+保存好它，用于首次管理员初始化和忘记密码后的恢复。
+
+以下变量都是可选：
+
+| 变量 | 首次部署 | 后台配置 |
+|---|---|---|
+| `JWT_SECRET` | 可选 | 不需要；留空时由 `CACHE_KV` 自动生成 |
+| `PBKDF2_ITERATIONS` | 可选 | 不需要；留空使用默认值 |
+| `INDEXNOW_KEY` | 不需要 | 系统设置 |
+| `EXTERNAL_AI_API_KEY` | 不需要 | AI 设置；只使用外部 AI 时填写 |
+| `RESEND_API_KEY` | 不需要 | 系统设置；启用邮件回复时填写 |
+| `GOOGLE_SERVICE_ACCOUNT_JSON` | 不需要 | 系统设置；启用 Google 服务账号时填写 |
+
+后台保存的可选服务密钥不会回显，并会加密保存。Cloudflare Secret 仍可作为兼容兜底。
+
+**不要提交真实 Secret 到 GitHub。**
 
 ## 5. 一键部署链路
 
