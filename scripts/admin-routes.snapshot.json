@@ -53,6 +53,10 @@
   },
   {
     "method": "GET",
+    "path": "/geo"
+  },
+  {
+    "method": "GET",
     "path": "/keywords"
   },
   {
@@ -122,6 +126,10 @@
   {
     "method": "GET",
     "path": "/setup"
+  },
+  {
+    "method": "GET",
+    "path": "/social"
   },
   {
     "method": "GET",
