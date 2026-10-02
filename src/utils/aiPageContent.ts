@@ -6,6 +6,38 @@ import { getSiteProfile } from './siteProfile'
 
 export type AiPageContent = { title: string; summary: string; content: string }
 
+function prepareModelContent(value: string): string {
+  let text = String(value || '')
+    .replace(/^\\s*\\`\\`\\`(?:html|markdown|md|text)?\\s*/i, '')
+    .replace(/\\s*\\`\\`\\`\\s*$/i, '')
+    .replace(/^(#{2,3})\\s+(.+)$/gm, (_match, hashes, heading) => '<h' + (hashes.length === 2 ? '2' : '3') + '>' + String(heading).trim() + '</h' + (hashes.length === 2 ? '2' : '3') + '>')
+    .replace(/^\\s*[-*]\\s+(.+)$/gm, '<li>$1</li>')
+    .trim()
+
+  // 模型偶尔把连续的 Markdown 列表返回成裸 <li>；补成合法列表结构。
+  text = text.replace(/(?:<li>[^<]*(?:<[^>]+>[^<]*)?<\\/li>\\s*){2,}/g, (block) => '<ul>' + block + '</ul>')
+  return text
+}
+
+function ensureReadableStructure(html: string): string {
+  const source = String(html || '').trim()
+  if (!source) return source
+  if ((source.match(/<h[23]>/gi) || []).length >= 3) return source
+
+  const paragraphs = source.match(/<p>[^]*?<\\/p>/gi) || []
+  if (paragraphs.length >= 4) {
+    const headings = ['适用对象与常见场景', '办理流程与材料准备', '风险与注意事项', '下一步行动建议']
+    const out: string[] = []
+    paragraphs.forEach((paragraph, index) => {
+      if (index < headings.length) out.push('<h2>' + headings[index] + '</h2>')
+      out.push(paragraph)
+    })
+    return out.join('')
+  }
+
+  return source
+}
+
 function cleanHtml(html: string): string {
   const allowed = new Set(['p', 'h2', 'h3', 'ul', 'ol', 'li', 'strong', 'em', 'br'])
   const sanitized = String(html || '')
@@ -50,7 +82,8 @@ function validPageContent(value: any, fallbackTitle = '网站内容', fallbackSu
   }
 
   const rawContent = typeof value === 'string' ? value : value.content
-  const content = cleanHtml(String(rawContent || '').trim())
+  const preparedContent = prepareModelContent(String(rawContent || '').trim())
+  const content = ensureReadableStructure(cleanHtml(preparedContent))
   if (!content) return null
 
   const title = String(value?.title || fallbackTitle).trim()
@@ -228,7 +261,7 @@ export async function generateAiPageContent(env: Bindings, input: {
       const fallback = await runConfiguredAi(
         env,
         { messages: [{ role: 'user', content: fallbackPrompt }] },
-        { ...effectiveSettings, maxTokens: Math.max(effectiveSettings.maxTokens, 3072) },
+        { ...effectiveSettings, maxTokens: Math.max(effectiveSettings.maxTokens, 4096) },
       )
       const fallbackValid = extractValidPageContent(fallback, subject, input.summary || '')
       if (fallbackValid && qualityEnough(fallbackValid, input.type)) return fallbackValid
