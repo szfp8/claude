@@ -244,10 +244,28 @@ export default {
       const configuredTime = /^([01]\d|2[0-3]):[0-5]\d$/.test(settings.news_collection_time || '')
         ? settings.news_collection_time
         : '08:00'
+      // Cloudflare Cron Triggers run on a 5-minute cadence here. The configured
+      // business time is Beijing time, so accept the first cron tick within the
+      // five-minute window instead of requiring an impossible exact minute.
       const now = new Date()
-      const beijingHour = (now.getUTCHours() + 8) % 24
-      const currentTime = String(beijingHour).padStart(2, '0') + ':' + String(now.getUTCMinutes()).padStart(2, '0')
-      if (currentTime !== configuredTime) return
+      const beijingTotalMinutes = (((now.getUTCHours() + 8) % 24) * 60) + now.getUTCMinutes()
+      const [targetHour, targetMinute] = configuredTime.split(':').map(Number)
+      const targetTotalMinutes = targetHour * 60 + targetMinute
+      const minutesSinceTarget = (beijingTotalMinutes - targetTotalMinutes + 1440) % 1440
+      if (minutesSinceTarget >= 5) return
+
+      // Avoid a duplicate run if Cloudflare retries the same scheduled invocation
+      // inside the same five-minute window. KV is best-effort locking; the D1
+      // pipeline remains idempotent through source_url deduplication.
+      const lockKey = 'news_collection:scheduled:' + targetTotalMinutes + ':' + Math.floor(beijingTotalMinutes / 5)
+      try {
+        const existingLock = await env.CACHE_KV.get(lockKey)
+        if (existingLock) return
+        await env.CACHE_KV.put(lockKey, new Date().toISOString(), { expirationTtl: 300 })
+      } catch (e) {
+        console.warn('news collection schedule lock unavailable; continuing without lock', e)
+      }
+
       ctx.waitUntil(runNewsCollection(env, undefined, ctx).catch((e) => console.error('scheduled news collection failed', e)))
     } catch (e) {
       console.error('scheduled news collection settings check failed', e)
