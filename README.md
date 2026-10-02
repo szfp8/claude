@@ -1,6 +1,6 @@
 # Cloudflare Workers 白标 CMS
 
-一个可直接连接到 Cloudflare、可 Fork、可独立部署的 Cloudflare Workers CMS。仓库本身包含 Worker 源码、D1 migrations、KV/R2/AI/Assets 绑定、部署脚本、健康检查、CI 和完整部署说明。
+一个可直接连接到 Cloudflare、可独立部署的 Cloudflare Workers CMS。仓库本身包含 Worker 源码、D1 migrations、KV/R2/AI/Assets 绑定、部署脚本、健康检查、CI 和完整部署说明。
 
 ## 🚀 直接连接现有 GitHub 仓库部署到 Cloudflare
 
@@ -72,7 +72,7 @@ D1 migrations → Worker → postdeploy check
 2. **Cloudflare 账号已连接 GitHub 且有 Workers/D1/KV/R2/AI 所需权限**；首次部署可能会要求授权或确认资源创建。
 3. **Production branch 固定 `main`**，Root directory 固定 `/`，不要把项目部署到子目录。
 4. **Build / Deploy 不要改成自定义命令**：分别使用 `npm run build` 和 `npm run deploy`，D1 migration 已包含在 deploy 闭环中。
-5. **不要把账号专属 ID 写回 `wrangler.toml`**。仓库故意不提交 D1 `database_id`、KV ID；这样 Fork 到新 Cloudflare 账号后才能重新绑定资源。
+5. **不要把账号专属 ID 写回 `wrangler.toml`**。仓库故意不提交 D1 `database_id`、KV ID；这样在新的 Cloudflare 账号中才能重新绑定资源。
 6. **第一次部署失败不要删除已创建资源**。先看失败步骤；如果 Worker/KV/D1/R2 已创建，修复配置后直接重新执行 Deploy。
 
 ### 首次部署最容易踩的坑
