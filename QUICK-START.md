@@ -1,142 +1,58 @@
-# 🚀 Cloudflare Workers 一键部署指南
+# Cloudflare Workers 一键部署
 
-**适合小白快速部署！无需复杂配置。**
+## 最简单的方法：点击按钮
 
-## ⚡ 30 秒快速开始
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https%3A%2F%2Fgithub.com%2Fszfp8%2Fclaude)
 
-### 1️⃣ 克隆仓库
-```bash
-git clone https://github.com/szfp8/claude.git
-cd claude
+Cloudflare 会创建你的 GitHub 副本，并引导配置 Worker、D1、KV、R2。
+
+## Workers Builds
+
+```text
+Production branch = main
+Root directory   = /
+Build command    = npm run build
+Deploy command   = npm run deploy
+Node.js          = 26.10.0
 ```
 
-### 2️⃣ 安装依赖
-```bash
-npm install
-```
-
-### 3️⃣ 配置 Cloudflare
-在 `wrangler.toml` 中修改：
-```toml
-name = "my-app"  # 改成你的应用名
-```
-
-### 4️⃣ 一键部署
-```bash
-npm run deploy
-```
-
-✅ **完成！** 你的应用现已在 Cloudflare Workers 上运行！
-
----
-
-## 📋 必要配置
-
-### 步骤 1: 登录 Cloudflare
+## 手动部署
 
 ```bash
+npm ci
 npx wrangler login
-```
-
-会打开浏览器，点击授权即可。
-
-### 步骤 2: 验证配置
-
-```bash
-npm run check:deployment
-```
-
-输出应该显示：
-```
-✅ 配置检查通过
-✅ 数据库已初始化
-✅ 可以开始部署
-```
-
-### 步骤 3: 部署
-
-```bash
+npm run doctor
+npm run verify
+npm run validate:complete
 npm run deploy
 ```
 
-完成后会显示：
-```
-✅ Deployed to https://my-app.workers.dev
-```
+## 名称规则
 
----
+手动连接已有 Workers Builds 时：
 
-## 🔑 环境变量配置（可选）
-
-在 Cloudflare Dashboard 中配置：
-
-```
-JWT_SECRET = "your-secret-key"  # 建议生成随机字符串
-SETUP_TOKEN = "your-setup-token"  # 首次初始化令牌
+```text
+Cloudflare Worker name = wrangler.toml -> name
 ```
 
-生成随机密钥：
-```bash
-node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+D1 绑定固定为：
+
+```toml
+binding = "DB"
+database_name = "white-label-cms-db"
+migrations_dir = "migrations"
 ```
 
----
+不提交 `database_id`、KV `id`、Token 或生产 Secret。
 
-## ✅ 验证部署成功
+## 上线检查
 
-访问你的应用：
-```
-https://your-app-name.workers.dev/admin
-```
-
-看到初始化页面 = 部署成功！
-
----
-
-## 🆘 常见问题
-
-### Q: 部署失败？
-```bash
-npm run check:deployment  # 检查问题
-npm run deploy            # 重新部署
+```text
+[ ] Worker URL
+[ ] /healthz?probe=1
+[ ] D1 migrations
+[ ] /admin/setup
+[ ] JWT_SECRET / SETUP_TOKEN
 ```
 
-### Q: 找不到 wrangler？
-```bash
-npm install wrangler --save-dev
-```
-
-### Q: 需要访问数据库？
-```bash
-npm run db:migrate:remote  # 初始化数据库
-```
-
----
-
-## 📞 需要帮助？
-
-- 📖 [完整文档](./docs/DEPLOYMENT.md)
-- 🐛 [提交 Issue](https://github.com/szfp8/claude/issues)
-- 💬 [GitHub 讨论](https://github.com/szfp8/claude/discussions)
-
----
-
-## 🎯 部署流程图
-
-```
-1. git clone
-   ↓
-2. npm install
-   ↓
-3. npx wrangler login
-   ↓
-4. npm run check:deployment
-   ↓
-5. npm run deploy
-   ↓
-✅ 成功！应用已上线
-```
-
----
-
-**祝部署顺利！🎉**
+当前版本：v1.0.0
