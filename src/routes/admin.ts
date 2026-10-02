@@ -2854,7 +2854,7 @@ adminRoutes.get('/news-sources', async (c) => {
   }
   const message = c.req.query('error')
     || (c.req.query('started') === '1' ? '采集任务已在后台启动。请稍后查看“采集日志”确认抓取、AI解读和自动发布结果。' : '')
-    || (c.req.query('collected') === '1' ? '新闻采集完成：AI通过质量门槛后按当前“自动发布”设置处理；失败或低质量内容不会发布。' : '')
+    || (c.req.query('collected') === '1' ? '新闻采集完成：AI通过质量门槛后统一进入待审核；失败或低质量内容不会发布。' : '')
     || (c.req.query('schedule_saved') === '1' ? '定时采集时间已保存。' : '')
   return c.html(renderNewsSourcesList(rows as any, collectedArticles as any, message, schedule))
 })
