@@ -9,6 +9,7 @@ import { getSiteProfile } from '../utils/siteProfile'
 const NAV = [
   { group: '运营', href: '/admin', label: '数据概览', icon: '📊' },
   { group: '运营', href: '/admin/articles', label: '内容管理', pageKey: 'articles', icon: '📰' },
+  { group: '运营', href: '/admin/social', label: '国内内容分发', icon: '📣' },
   { group: '运营', href: '/admin/news-sources', label: '新闻采集', icon: '📡' },
   { group: 'SEO', href: '/admin/keywords', label: '关键词矩阵', icon: '🔎' },
   { group: 'SEO', href: '/admin/cities', label: '城市管理', pageKey: 'cities', icon: '📍' },
