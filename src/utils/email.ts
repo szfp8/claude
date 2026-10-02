@@ -1,4 +1,5 @@
 import type { Bindings } from '../types'
+import { getProtectedSecret } from './protectedSecrets'
 
 function escapeHtml(value: string): string {
   return String(value || '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch] || ch))
@@ -8,8 +9,8 @@ export async function sendCustomerReplyEmail(
   env: Bindings,
   params: { to: string; subject: string; content: string; replyTo?: string },
 ): Promise<{ ok: boolean; error?: string; id?: string }> {
-  const apiKey = String(env.RESEND_API_KEY || '').trim()
-  if (!apiKey) return { ok: false, error: '未配置 RESEND_API_KEY' }
+  const apiKey = (await getProtectedSecret(env, 'RESEND_API_KEY')) || String(env.RESEND_API_KEY || '').trim()
+  if (!apiKey) return { ok: false, error: '未配置 Resend API Key，请进入后台「系统设置」填写。' }
 
   const settingsRow = await env.DB.prepare("SELECT key, value FROM settings WHERE key IN ('email_from','email_reply_to','site_name')").all()
   const settings: Record<string, string> = {}
