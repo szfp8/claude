@@ -44,6 +44,36 @@ postdeploy health check
 Worker Online
 ```
 
+## 0. 最短一键部署
+
+如果你只想完成第一次上线，按这 8 步即可：
+
+1. 点击上面的 **Deploy to Cloudflare**。
+2. GitHub 选择现有仓库 **`szfp8/claude`**。
+3. **关闭「创建专用 Git 存储库」**，不要创建第二个代码仓库。
+4. Production branch = `main`，Root = `/`，Node = `26.10.0`。
+5. Build = `npm run build`，Deploy = `npm run deploy`。
+6. 绑定 `DB / CACHE_KV / R2_MEDIA / AI / ASSETS`。
+7. 首次只保存一个 `SETUP_TOKEN`；其他 AI、邮件、IndexNow、Google 密钥上线后在后台设置。
+8. 部署成功后打开 `/admin/setup` 创建唯一管理员。
+
+```text
+GitHub: szfp8/claude
+       ↓
+Deploy to Cloudflare
+       ↓
+现有仓库（不创建 dedicated repo）
+       ↓
+DB / KV / R2 / AI / Assets
+       ↓
+npm ci → npm run build → npm run deploy
+       ↓
+D1 migrations → Worker → postdeploy check
+       ↓
+/admin/setup → /admin/settings → /admin/ai-settings
+```
+
+**首次部署不要填写真实的第三方服务密钥。** `INDEXNOW_KEY`、`EXTERNAL_AI_API_KEY`、`RESEND_API_KEY`、`GOOGLE_SERVICE_ACCOUNT_JSON` 均可以登录后台后再配置。
 ## 1. Cloudflare「设置您的应用程序」
 
 | 项目 | 设置 |
