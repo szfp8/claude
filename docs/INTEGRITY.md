@@ -7,7 +7,6 @@
 | 工作流 | 文件 | 触发 | 作用 |
 |--------|------|------|------|
 | Validate Cloudflare Worker | `.github/workflows/deploy.yml` | `push`/`PR` → `main`，手动 | 语法、路由/SEO/白标契约、部署配置、migrations、`tsc`、单元测试、D1 local migrate、`wrangler deploy --dry-run` |
-| Generate package-lock | `.github/workflows/generate-lockfile.yml` | 手动 | 重生 lockfile |
 
 ### CI 步骤（validate）
 
@@ -34,7 +33,7 @@ Node：**26.10.0**（`.node-version` / `.nvmrc`）。
 | Unit tests | `auth.ts` 导入 `./password` 无扩展名，Node ESM 失败 | 在 `auth.ts` **内联** `timingSafeEqual` |
 | Build (tsc) | 曾改为 `./password.ts`，Bundler 解析报错 | 同上，去掉相对导入 |
 
-Actions **只做校验**，不部署生产；生产靠 Cloudflare Workers Builds / Dashboard。
+Actions **只做校验**，不部署生产；生产靠 Cloudflare Workers Builds / Dashboard。仓库当前仅保留 `.github/workflows/deploy.yml`。
 
 ---
 
@@ -43,9 +42,9 @@ Actions **只做校验**，不部署生产；生产靠 Cloudflare Workers Builds
 | 项 | 状态 | 说明 |
 |----|------|------|
 | 入口 | ✅ | `src/index.ts` |
-| D1 migrations | ✅ | `0001`–`0019`（20 文件） |
+| D1 migrations | ✅ | 当前 `migrations/` 全部迁移文件 |
 | 绑定 | ✅ | DB / CACHE_KV / R2_MEDIA / AI / ASSETS |
-| `[build]` | ✅ | 仅 `npm run build`；远程 D1 migration 由 `deploy-all.mjs` 单一路径处理 |
+| `[build]` | ✅ | `npm run build`；远程 D1 migration 由 `deploy-all.mjs` 单一路径处理 |
 | 白标内容 | ✅ | 行业/站点主题来自设置，不绑定财税模板；`check:whitelabel` 扫描遗留行业词/域名 |
 | JWT | ✅ | 可留空，CACHE_KV 自动生成 |
 | 一键 CF | ✅ | Secret 可全空（`docs/CF-ONE-CLICK.md`） |
