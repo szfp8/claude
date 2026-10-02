@@ -1,6 +1,6 @@
 # Cloudflare 白标 CMS 部署说明
 
-版本：`1.0.0`  
+版本：`1.0.1`  
 Worker 默认名：`white-label-cms`  
 Node：`26.10.0`
 
@@ -79,29 +79,20 @@ binding = "AI"
 
 ## 4. Secrets
 
-Cloudflare 页面需要的 Secret：
+首次部署只需要保留 `SETUP_TOKEN` 作为初始化与恢复入口：
 
-```text
-JWT_SECRET
-SETUP_TOKEN
-PBKDF2_ITERATIONS
-INDEXNOW_KEY
-EXTERNAL_AI_API_KEY
-RESEND_API_KEY
-GOOGLE_SERVICE_ACCOUNT_JSON
+```bash
+openssl rand -hex 32
 ```
 
-推荐值：
+以下配置按需使用，第三方密钥推荐在后台配置，而不是阻塞第一次部署：
 
-```text
-JWT_SECRET                  = openssl rand -hex 32
-SETUP_TOKEN                 = openssl rand -hex 32
-PBKDF2_ITERATIONS           = 100000
-INDEXNOW_KEY                = openssl rand -hex 16
-EXTERNAL_AI_API_KEY         = unused（不用时）
-RESEND_API_KEY              = unused（不用时）
-GOOGLE_SERVICE_ACCOUNT_JSON = {}（不用时）
-```
+- `JWT_SECRET`：可选；留空时由 `CACHE_KV` 自动生成。
+- `PBKDF2_ITERATIONS`：可选；留空使用默认值。
+- `INDEXNOW_KEY`：后台「系统设置」按需配置。
+- `EXTERNAL_AI_API_KEY`：后台「AI 设置」按需配置。
+- `RESEND_API_KEY`：后台「系统设置」按需配置。
+- `GOOGLE_SERVICE_ACCOUNT_JSON`：后台「系统设置」按需配置。
 
 真实 Secret 只进入 Cloudflare，不进入 GitHub。
 
