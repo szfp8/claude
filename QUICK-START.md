@@ -111,7 +111,9 @@ npm run validate:complete
 npm run deploy
 ```
 
-手动路径和 Cloudflare Workers Builds 共用同一个 `npm run deploy`。
+手动路径和 Cloudflare Workers Builds 共用同一个 `npm run deploy`，**不要另外执行远程 migration 再部署 Worker**。
+
+首次部署如果已经创建了 Worker / D1 / KV / R2，但后续步骤失败，保留现有资源，修复日志中的第一个失败点后直接重试 `npm run deploy`。
 
 当前版本：v1.0.1
 
