@@ -993,7 +993,7 @@ async function getAiRouteStatus(env: Bindings): Promise<{ ok: true; settings: Aw
     }
   } else {
     if (!(await hasProtectedSecret(env, 'EXTERNAL_AI_API_KEY')) && !String(env.EXTERNAL_AI_API_KEY || '').trim()) {
-      return { ok: false, message: '当前通道为外部 OpenAI-compatible API，但 Secret EXTERNAL_AI_API_KEY 未配置。请在 Cloudflare Worker → Settings → Variables and Secrets 添加该 Secret。' }
+      return { ok: false, message: '当前通道为外部 OpenAI-compatible API，但 API Key 未配置。请进入后台「AI设置」填写；也可使用 Cloudflare Secret EXTERNAL_AI_API_KEY 作为兼容兜底。' }
     }
     if (!settings.externalBaseUrl) {
       return { ok: false, message: '外部 AI API 地址未配置或不是 HTTPS 公网地址，请到「AI设置」填写 API Base URL。' }
