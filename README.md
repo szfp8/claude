@@ -545,7 +545,54 @@ CI 是仓库质量闸门；Cloudflare Workers Builds 才负责生产发布。
 - 用户数据
 - 生产数据库导出
 
-## 18. 版本
+## 18. 仓库完整性与自动化运行边界
+
+本仓库已经按“代码入口 → D1 迁移 → 后台路由 → AI 采集/生成 → 人工审核 → 正式发布 → SEO/GEO → Cloudflare 部署 → GitHub Actions”做过一次完整性巡检。
+
+### 已确认的核心约束
+
+- **唯一生产代码源**：`main` 分支；不依赖第二个专用 GitHub 仓库。
+- **部署入口唯一**：`npm run deploy`；D1 远程迁移不放在 `npm run build` 中执行。
+- **资源 ID 不硬编码**：D1 / KV 使用 Cloudflare 部署阶段的绑定资源，不提交账号级 ID。
+- **文章状态闭环**：`draft → pending_review → published`；AI 采集和 AI 生成默认不能直接公开。
+- **新闻去重**：以来源 URL 为第一层幂等键，定时任务另有短期 KV 锁，减少重复 Cron 执行。
+- **公开页面动态渲染**：D1/R2/Settings → Worker SSR → Cache；不把 CMS 数据复制成一套静态 HTML。
+- **后台写操作使用 POST**：删除、生成、审核、发布、采集等变更操作不通过 GET 链接执行。
+- **验证链完整**：仓库完整性、路由、公开路由、SEO/GEO、白标、联系方式、部署配置、迁移、TypeScript、测试和 Wrangler dry-run 均纳入 CI。
+
+### 新闻定时采集的时间规则
+
+Cloudflare Cron 当前每 5 分钟触发一次，而 Cron 调度本身按 UTC 执行。后台的“每天北京时间”是业务时间，因此 Worker 会把 UTC 转成北京时间，并接受配置时间之后 **0–4 分钟内的第一个 Cron tick**。
+
+例如：
+
+```text
+后台配置 08:00 → 08:00 触发
+后台配置 08:02 → 08:05 触发
+后台配置 08:05 → 08:05 触发
+后台配置 23:59 → 次日 00:00 触发
+```
+
+定时采集每轮仍只处理当前最需要抓取的一个来源和最新候选文章，以控制 Workers AI、外部请求和 CPU 开销；多个来源不会在一次 Cron 中无限并发。需要立即处理某个来源时，使用 `/admin/news-sources` 的“立即抓取”。
+
+定时采集成功也**不等于自动发布**：AI 文章必须先进入 `pending_review`，管理员审核通过后才进入 `published`，随后才执行缓存清理、Sitemap/搜索引擎通知和其他已配置的发布后动作。
+
+### 不做的“清理”
+
+巡检不会因为文件数量多就删除代码。历史 D1 migration、`.nvmrc`、`.node-version`、路由快照、CI 校验脚本、公开/部署检查脚本只要仍被代码或发布流程引用，就保留。只有确认无引用、无运行职责的遗留入口才应删除。
+
+### 修改后建议执行
+
+```bash
+npm ci
+npm run validate:complete
+npx wrangler d1 migrations apply DB --local
+npx wrangler deploy --dry-run --config wrangler.toml
+```
+
+Cloudflare Cron 也可以本地通过 Wrangler 的 scheduled 测试入口验证；生产环境则以 Worker 的 Cron Events / Logs 和后台 `/admin/collection-logs` 为准。
+
+## 19. 版本
 
 当前版本：**v1.0.1**
 
