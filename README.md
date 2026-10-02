@@ -54,7 +54,7 @@ Worker Online
 4. Production branch = `main`，Root = `/`，Node = `26.10.0`。
 5. Build = `npm run build`，Deploy = `npm run deploy`。
 6. 不要先手工创建一套同名 D1/KV/R2；本仓库的 `wrangler.toml` + `npm run deploy` 会按当前 Cloudflare 账号完成资源准备与绑定。只有 Cloudflare 页面明确要求你选择已有资源时，才选择当前账号对应资源。
-7. 首次只保存一个 `SETUP_TOKEN`；其他 AI、邮件、IndexNow、Google 密钥上线后在后台设置。
+7. 首次部署不需要填写任何 Secret；其他 AI、邮件、IndexNow、Google 密钥上线后按需在后台设置。
 8. 部署成功后打开 `/admin/setup` 创建唯一管理员。
 
 ```text
