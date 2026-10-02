@@ -101,24 +101,7 @@ white-label-cms
 
 ## 6. Secret
 
-标准生产部署需要在 Cloudflare 创建页面配置：
-
-```text
-JWT_SECRET
-SETUP_TOKEN
-PBKDF2_ITERATIONS
-INDEXNOW_KEY
-```
-
-Cloudflare UI 如果强制显示可选服务字段，则暂时使用：
-
-```text
-EXTERNAL_AI_API_KEY=unused
-RESEND_API_KEY=unused
-GOOGLE_SERVICE_ACCOUNT_JSON={}
-```
-
-这些值只作为未启用服务的占位配置。
+首次部署只需要 `SETUP_TOKEN`；`JWT_SECRET`、`PBKDF2_ITERATIONS` 以及 IndexNow / AI / 邮件 / Google 等服务按需配置。第三方服务密钥推荐在后台设置，避免把非必要配置带入第一次资源创建。
 
 ## 7. 部署后验收
 
