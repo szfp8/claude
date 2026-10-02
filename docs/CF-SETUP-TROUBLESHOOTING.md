@@ -1,20 +1,20 @@
 # Cloudflare 一键部署与 /admin/setup 排查
 
-## 1. 推荐：不要手填 Builds 字段
+## 1. 推荐：按仓库固定配置 Workers Builds
 
-Workers Builds **默认**字段与仓库对齐：
+请显式填写，避免 Cloudflare Dashboard 使用旧项目默认值：
 
-| 字段 | 默认 / 仓库 |
-|------|-------------|
+| 字段 | 值 |
+|------|---|
 | Production branch | `main` |
-| Root directory | 仓库根（留空） |
-| Build command | 可留空（由 `wrangler.toml` `[build]` 执行） |
-| Deploy command | `npx wrangler deploy` |
-| Node.js | **26.10.0**（`.nvmrc` / `.node-version` / `engines.node`） |
+| Root directory | `/` |
+| Build command | `npm run build` |
+| Deploy command | `npm run deploy` |
+| Node.js | **26.10.0** |
 
-连接仓库后直接部署即可。仓库已用 `[build] command = "npm run build && node scripts/try-remote-migrate.mjs"` 保证默认 `npx wrangler deploy` 也会 typecheck 并尽力应用 D1 migrations。
+`npm run deploy` 是当前唯一生产部署入口，会负责远程 D1 migration、Worker 发布和部署后健康检查。
 
-若旧项目曾手填 Node 24.x：可改为读取仓库 `.nvmrc`（26.10.0），或清空后让 Builds 读文件。
+如果旧项目仍然显示 `npx wrangler deploy` 或其他旧命令，请改成上面的仓库配置。不要再使用已经删除的 `try-remote-migrate.mjs`。
 
 ## 2. 首次部署后 d1_schema 为 false
 
