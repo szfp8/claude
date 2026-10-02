@@ -1,4 +1,5 @@
 import type { Bindings } from '../types'
+import { getProtectedSecret } from './protectedSecrets'
 import { submitGoogleIndexing } from './googleIndexing'
 import { MIN_INDEXABLE_OPPORTUNITY_SCORE } from './keywordScore'
 
@@ -231,8 +232,9 @@ export async function submitSogou(env: Bindings, urls: string[]) {
 }
 // Google Indexing API（可选，需 GOOGLE_SERVICE_ACCOUNT_JSON secret，见 README 说明）
 export async function submitGoogle(env: Bindings, urls: string[]) {
-  if (!env.GOOGLE_SERVICE_ACCOUNT_JSON) return { ok: false, error: '未配置 GOOGLE_SERVICE_ACCOUNT_JSON' }
-  const result = await submitGoogleIndexing(env.GOOGLE_SERVICE_ACCOUNT_JSON, urls)
+  const serviceAccount = (await getProtectedSecret(env, 'GOOGLE_SERVICE_ACCOUNT_JSON')) || String(env.GOOGLE_SERVICE_ACCOUNT_JSON || '').trim()
+  if (!serviceAccount) return { ok: false, error: '未配置 Google 服务账号，请进入后台「SEO / 自然收录」或系统设置填写。' }
+  const result = await submitGoogleIndexing(serviceAccount, urls)
   await log(env, 'google', urls.join(','), result.ok ? 200 : 0, JSON.stringify(result))
   return result
 }
