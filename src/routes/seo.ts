@@ -37,9 +37,13 @@ seoRoutes.get('/sitemap.xml', async (c) => {
 // 二是这些爬虫各家的行为准则里通常建议"网站主动声明允许"，写清楚更保险。
 seoRoutes.get('/robots.txt', async (c) => {
   const siteUrl = resolveSiteUrl(c)
-  const geoRows = (await c.env.DB.prepare("SELECT key, value FROM settings WHERE key IN ('geo_ai_crawlers_enabled','geo_llms_enabled')").all()).results as any[]
-  const geo = new Map(geoRows.map((row) => [String(row.key), String(row.value || '')]))
-  const allowAiCrawlers = geo.get('geo_ai_crawlers_enabled') !== '0'
+  let allowAiCrawlers = true
+  try {
+    const geoRows = (await c.env.DB.prepare("SELECT key, value FROM settings WHERE key='geo_ai_crawlers_enabled'").all()).results as any[]
+    allowAiCrawlers = String(geoRows.find((row) => String(row.key) === 'geo_ai_crawlers_enabled')?.value || '1') !== '0'
+  } catch (e) {
+    console.warn('GEO robots setting read failed; using allow-by-default policy', e)
+  }
   const body = `User-agent: *
 Allow: /
 Disallow: /admin
