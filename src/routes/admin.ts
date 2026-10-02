@@ -4125,6 +4125,8 @@ adminRoutes.get('/ai-settings', async (c) => {
     testProvider: c.req.query('provider') || '',
     testResponse: c.req.query('response') || '',
     testMessage: c.req.query('message') || '',
+    testTask: c.req.query('task') || 'connectivity',
+    testQuality: c.req.query('quality') || '',
   }))
 })
 
@@ -4150,24 +4152,34 @@ adminRoutes.post('/ai-settings', async (c) => {
 
 adminRoutes.post('/ai-settings/test', async (c) => {
   const settings = await getAiSettings(c.env)
-  if (!settings.enabled) {
-    return c.redirect('/admin/ai-settings?test=disabled')
-  }
+  const body = await c.req.parseBody()
+  const task = ['connectivity', 'city', 'article'].includes(String(body.test_task || 'connectivity')) ? String(body.test_task || 'connectivity') : 'connectivity'
+  if (!settings.enabled) return c.redirect('/admin/ai-settings?test=disabled&task=' + encodeURIComponent(task))
   try {
-    const result: any = await runConfiguredAi(
-      c.env,
-      { messages: [{ role: 'user', content: '只回复 ok，不要输出其他内容。' }] },
-      settings,
-    )
-    const responseText = getAiResponseText(result).trim()
-    if (!responseText) {
-      return c.redirect('/admin/ai-settings?test=empty')
+    let responseText = ''
+    let quality = ''
+    if (task === 'connectivity') {
+      const result: any = await runConfiguredAi(c.env, { messages: [{ role: 'user', content: '只回复 ok，不要输出其他内容。' }] }, settings)
+      responseText = getAiResponseText(result).trim()
+      if (!responseText) return c.redirect('/admin/ai-settings?test=empty&task=connectivity')
+      quality = '通道可调用，返回文本正常'
+    } else {
+      const generated = await generateAiPageContent(
+        c.env,
+        task === 'city'
+          ? { type: 'city', city: '示例城市', keywords: ['示例主题'], summary: '用于后台诊断的示例城市页面。' }
+          : { type: 'article', title: '示例行业文章', summary: '用于后台诊断的示例文章。', keywords: ['示例主题'] },
+        settings,
+      )
+      if (!generated?.content || generated.content.length < 300) throw new Error('真实内容任务返回内容过短或为空')
+      responseText = [generated.title, generated.summary, generated.content].filter(Boolean).join('\n\n')
+      quality = '真实内容任务通过：已得到可保存的标题、摘要和正文'
     }
     const model = settings.provider === 'workers_ai' ? settings.model : settings.externalModel
-    return c.redirect('/admin/ai-settings?test=ok&provider=' + encodeURIComponent(settings.provider) + '&model=' + encodeURIComponent(model) + '&response=' + encodeURIComponent(responseText.slice(0, 120)))
+    return c.redirect('/admin/ai-settings?test=ok&task=' + encodeURIComponent(task) + '&quality=' + encodeURIComponent(quality) + '&provider=' + encodeURIComponent(settings.provider) + '&model=' + encodeURIComponent(model) + '&response=' + encodeURIComponent(responseText.slice(0, 2400)))
   } catch (e) {
     console.error('AI diagnostic test failed', e)
-    return c.redirect('/admin/ai-settings?test=error&message=' + encodeURIComponent(errorMessage(e, 'AI 测试失败').slice(0, 600)))
+    return c.redirect('/admin/ai-settings?test=error&task=' + encodeURIComponent(task) + '&message=' + encodeURIComponent(errorMessage(e, 'AI 测试失败').slice(0, 600)))
   }
 })
 
