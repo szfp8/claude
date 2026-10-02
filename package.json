@@ -8,7 +8,6 @@
     "dev": "wrangler dev",
     "predeploy": "node scripts/predeploy.mjs",
     "deploy": "node scripts/deploy-all.mjs",
-    "deploy:all": "node scripts/deploy-all.mjs",
     "doctor": "node scripts/doctor.mjs",
     "db:migrate:remote": "wrangler d1 migrations apply DB --remote",
     "db:migrate:local": "wrangler d1 migrations apply DB --local",
