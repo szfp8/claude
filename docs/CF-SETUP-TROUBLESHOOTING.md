@@ -22,7 +22,7 @@
 
 处理：Dashboard **Retry deployment**，或再 push 一次 `main`，再查 `/healthz?probe=1`。
 
-本地可用：`npm run deploy:all`。
+本地可用：`npm run deploy`。
 
 ## 3. healthz 正常但 /admin/setup 失败
 
@@ -53,5 +53,5 @@
 2. 部署 success → /healthz?probe=1 → ok + d1_schema
 3. （必要时 Retry 一次）
 4. /admin/setup → /admin/settings
-5. 可选 Disconnect GitHub
+5. 后续部署继续使用同一个 GitHub 仓库与 `npm run deploy`
 ```
