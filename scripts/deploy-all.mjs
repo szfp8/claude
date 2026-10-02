@@ -2,7 +2,9 @@
 /**
  * Cloudflare Workers 白标一键部署闭环。
  *
- * 目标：Fork 到新的 Cloudflare 账号后，只使用当前副本的资源配置。
+ * 目标：Cloudflare Workers Builds 直接使用当前 Git 仓库作为唯一源码，
+ * 在一个全新的 Cloudflare 账号中先完成资源 provisioning，再执行 D1 migrations，
+ * 最后重新发布并进行健康检查。
  */
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -30,12 +32,7 @@ function run(args, capture = false) {
 }
 
 function deployArgs() {
-  const args = ['deploy', '--config', 'wrangler.toml']
-  const name = process.env.WRANGLER_CI_OVERRIDE_NAME
-    || process.env.CLOUDFLARE_WORKER_NAME
-    || process.env.WORKER_NAME
-  if (name) args.push('--name', name)
-  return args
+  return ['deploy', '--config', 'wrangler.toml']
 }
 
 function fail(result, label) {
@@ -53,17 +50,15 @@ function getD1Binding() {
 }
 
 try {
-  const probe = run(['d1', 'migrations', 'list', getD1Binding(), '--remote', '--config', 'wrangler.toml'], true)
-  let initialOutput = ''
-
-  if (probe.status !== 0) {
-    console.log('D1 尚未就绪，执行首次部署创建/绑定当前 Cloudflare 资源…')
-    const first = run(deployArgs(), true)
-    initialOutput = `${first.stdout || ''}\n${first.stderr || ''}`
-    process.stdout.write(first.stdout || '')
-    process.stderr.write(first.stderr || '')
-    fail(first, 'Initial deploy')
-  }
+  // 第一次部署必须先发生：Cloudflare 会根据 wrangler.toml provisioning
+  // D1/KV/R2/AI 等资源。不要在这里提前执行 d1 migrations list，
+  // 因为全新账号中的 D1 可能尚不存在。
+  console.log('→ 首次发布 Worker，并让 Cloudflare 根据 wrangler.toml 准备资源')
+  const initial = run(deployArgs(), true)
+  const initialOutput = `${initial.stdout || ''}\n${initial.stderr || ''}`
+  process.stdout.write(initial.stdout || '')
+  process.stderr.write(initial.stderr || '')
+  fail(initial, 'Initial deploy')
 
   console.log('→ 应用 D1 migrations')
   fail(
@@ -71,7 +66,9 @@ try {
     'D1 migration',
   )
 
-  console.log('→ 发布 Worker')
+  // migration 改变的是远程数据库，不是 Worker bundle；这里重新发布一次，
+  // 确保最终生产部署与迁移后的资源状态一起完成。
+  console.log('→ 发布最终 Worker')
   const deploy = run(deployArgs(), true)
   process.stdout.write(deploy.stdout || '')
   process.stderr.write(deploy.stderr || '')
