@@ -511,11 +511,29 @@ export function renderLoginPage(error?: string): string {
   <input name="email" type="email" autocomplete="username" placeholder="管理员邮箱" required />
   <input name="password" type="password" autocomplete="current-password" placeholder="密码" style="margin-bottom:14px" required />
   <button class="btn" type="submit">登录</button>
-  <p style="text-align:center;margin-top:12px;font-size:12px;color:var(--muted)">首次使用会自动进入管理员初始化。</p>
+  <p style="text-align:center;margin-top:12px;font-size:12px"><a href="/admin/recover">忘记密码？使用 SETUP_TOKEN 恢复管理员账号</a></p>
+  <p style="text-align:center;margin-top:8px;font-size:12px;color:var(--muted)">首次使用会自动进入管理员初始化。</p>
 </form>
 </body></html>`
 }
 
+export function renderRecoverPage(error?: string): string {
+  return `<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" /><title>恢复管理员账号</title>
+<link rel="stylesheet" href="/styles.css" /></head>
+<body class="auth-page">
+<form method="post" action="/admin/recover" class="card auth-card">
+  <h2>恢复唯一管理员</h2>
+  <p style="color:var(--muted);font-size:13px;line-height:1.7">仅用于忘记后台密码。需要首次部署时保存的 Cloudflare Secret：<strong>SETUP_TOKEN</strong>。恢复后原密码立即失效。</p>
+  ${error ? `<p style="color:#e5484d;font-size:13px">${escapeHtml(error)}</p>` : ''}
+  <input name="setup_token" type="password" autocomplete="off" placeholder="SETUP_TOKEN" required />
+  <input name="email" type="email" autocomplete="username" placeholder="新的管理员邮箱" required />
+  <input name="password" type="password" autocomplete="new-password" placeholder="新的密码（至少10位，含两类字符）" minlength="10" maxlength="128" required />
+  <button class="btn" type="submit">恢复管理员账号</button>
+  <p style="text-align:center;margin-top:12px;font-size:12px"><a href="/admin/login">返回登录</a></p>
+</form>
+</body></html>`
+}
 export function renderSetupPage(error?: string, options: { requireToken?: boolean } = {}): string {
   return `<!DOCTYPE html>
 <html lang="zh-CN"><head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" /><title>初始化管理员账号</title>
@@ -1047,11 +1065,11 @@ export function renderKeywordsList(rows: any[], siteKeywords = '', message = '',
     body: `
     <div class="section-title"><h2>统一 SEO 关键词</h2>
       <div class="admin-actions">
-        <form method="post" action="/admin/keywords/rescore" style="display:inline" onsubmit="return confirm('将重新计算全部关键词机会分，并按统一搜索量权重同步规范页面主题词。继续？')"><button class="btn secondary" type="submit">重新计算机会分</button></form>
+        <form method="post" action="/admin/keywords/rescore" style="display:inline" onsubmit="return confirm('只重新计算关键词矩阵机会分，不修改页面 SEO 标题、描述或 seo_keywords。继续？')"><button class="btn secondary" type="submit">重新计算机会分</button></form>
         <button class="btn secondary" type="button" onclick="document.getElementById('seo-cleanup-options')?.scrollIntoView({behavior:'smooth'})">🧹 选择清理生产库</button>
-        <form method="post" action="/admin/keywords/ai-generate" style="display:inline" onsubmit="return confirm('AI将根据当前城市、服务和现有候选词生成补充主题词，并自动去重。继续？')"><button class="btn" type="submit">🤖 AI生成候选词</button></form>
-        <form method="post" action="/admin/keywords/generate" style="display:inline" onsubmit="return confirm('将按启用城市 × 启用服务生成/更新关键词矩阵，并重新计算机会分。人工搜索量不会被覆盖。继续？')"><button class="btn" type="submit">一键生成/更新矩阵</button></form>
-        <form method="post" action="/admin/seo/auto-fill" style="display:inline" onsubmit="return confirm('将修复缺失/异常 SEO 标题和描述，并把页面主题词统一规范为与正文匹配的 3-5 个。继续？')"><button class="btn secondary" type="submit">一键规范全部页面SEO</button></form>
+        <form method="post" action="/admin/keywords/ai-generate" style="display:inline" onsubmit="return confirm('只生成/追加全站候选词，不直接改写城市、服务、文章的页面 SEO。继续？')"><button class="btn" type="submit">🤖 AI生成候选词</button></form>
+        <form method="post" action="/admin/keywords/generate" style="display:inline" onsubmit="return confirm('只生成/更新城市×服务关键词矩阵并计算机会分，不自动改写页面 SEO。人工搜索量不会被覆盖。继续？')"><button class="btn" type="submit">一键生成/更新矩阵</button></form>
+        <form method="post" action="/admin/seo/auto-fill" style="display:inline" onsubmit="return confirm('只对城市、服务、已发布文章执行页面 SEO 规范；不会修改固定候选词库、关键词矩阵或 AI 提示词。继续？')"><button class="btn secondary" type="submit">一键规范全部页面SEO</button></form>
       </div>
     </div>
     <div class="seo-cleanup-panel" id="seo-cleanup-options">
@@ -1092,7 +1110,7 @@ export function renderKeywordsList(rows: any[], siteKeywords = '', message = '',
       <p class="admin-field-hint">“全量清理 AI/SEO 生成生产数据”会一次删除所有关键词矩阵、AI文章和 AI 页面内容，并同步清理关联审核/社交记录与 Worker 全量缓存；不会删除管理员、城市、服务、人工文章和站点基础设置。普通刷新或 CF 部署不会自动触发删除。</p>
     </div>
     ${message ? `<div class="card" style="border-left:4px solid ${message.startsWith('AI关键词已生成') || message.startsWith('生产库清理完成') ? '#1a8a4e' : '#e5484d'};margin-bottom:16px">${escapeHtml(message)}</div>` : ''}
-    <p style="color:var(--muted);font-size:13px">关键词矩阵用于发现搜索意图；公开页面遵循“一个页面一个主题 + 3-5 个主题词”。当前 Sitemap 只包含实际有效机会分、启用城市/服务且本站内部渲染的城市×服务落地页。</p>
+    <p style="color:var(--muted);font-size:13px">这 5 个操作职责不同：机会分只算分；清理生产库删除明确无效/重复的生产数据；AI候选词只维护全站候选词库；生成/更新矩阵只维护城市×服务关键词矩阵；规范全部页面SEO才会批量修复页面标题、描述和页面 seo_keywords。固定候选词库不会被最后一项覆盖。</p>
     <div class="card" style="margin-bottom:16px">
       <h3 style="margin-top:0">SEO 页面 / Sitemap / AI 文章数量</h3>
       <p style="color:var(--muted);font-size:13px;line-height:1.8;margin-bottom:0">
@@ -1366,7 +1384,7 @@ export function renderSeoPage(opts: {
     { key: 'indexnow', name: 'IndexNow', status: channels.indexnow, desc: '人工审核并发布后自动通知公开 URL；更新和删除公开 URL 也会通知。' },
     { key: 'bing', name: 'Bing / IndexNow', status: channels.indexnow, desc: 'Bing 自动 URL 通知使用 IndexNow；不依赖旧的 Bing SOAP/POX 接口。' },
     { key: 'baidu', name: '百度普通收录', status: channels.baidu, desc: channels.baidu ? '已配置 token，可主动提交发布 URL。' : '未配置 token：继续依靠 sitemap.xml、robots.txt 和站内链接自然发现。' },
-    { key: 'google', name: 'Google', status: false, desc: '普通页面使用 Sitemap + Search Console；不把通用 Indexing API 当普通文章批量提交接口。' },
+    { key: 'google', name: 'Google', status: channels.google, desc: '普通页面使用 Sitemap + Search Console；不把通用 Indexing API 当普通文章批量提交接口。' },
     { key: '360', name: '360 搜索', status: false, desc: '使用 sitemap.xml、robots.txt 和官方站长平台；模板不硬编码未经验证的推送接口。' },
     { key: 'sogou', name: '搜狗搜索', status: false, desc: '使用 sitemap.xml、robots.txt 和官方站长平台；模板不硬编码未经验证的推送接口。' },
     { key: 'baidu-ai', name: '百度 AI 搜索', status: 'manual', desc: '通过公开页面、结构化数据和 AI 搜索站长工具观察抓取、曝光与引用；不把普通收录当成 AI 引用保证。' },
@@ -1392,7 +1410,7 @@ export function renderSeoPage(opts: {
 
     <div class="card"><strong>成功记录</strong><div style="font-size:28px;margin-top:6px;color:#1a8a4e">${opts.successCount}</div></div>
       <div class="card"><strong>失败记录</strong><div style="font-size:28px;margin-top:6px;color:#e5484d">${opts.failureCount}</div></div>
-      <div class="card"><strong>Sitemap</strong><div style="margin-top:6px"><a href="/sitemap.xml" target="_blank">打开 sitemap.xml</a></div></div>
+      <div class="card"><strong>Sitemap</strong><div style="margin-top:6px"><a href="/sitemap.xml" target="_blank">打开 sitemap.xml</a></div><div style="margin-top:6px;color:var(--muted);font-size:12px">Sitemap 不是“收录结果”，只是公开 URL 清单。已发布文章、启用城市/服务及符合机会分条件的落地页才会进入；搜索引擎是否真正收录要看抓取与索引状态。</div></div>
       <div class="card"><strong>Robots</strong><div style="margin-top:6px"><a href="/robots.txt" target="_blank">打开 robots.txt</a></div></div>
     </div>
 
@@ -1601,7 +1619,14 @@ export function renderAiSettingsPage(settings: {
         <p style="color:var(--muted);font-size:12px">仅接受 Cloudflare Workers AI 模型 ID（例如 \`@cf/...\` 或 \`@hf/...\`）。</p>
       </div>
 
-      <div class="card" id="externalAiCard" style="margin-bottom:16px">
+      <div class="card" style="margin-bottom:16px">
+        <h3 style="margin-top:0">⑤ 外部 AI API Key</h3>
+        <p style="color:var(--muted);font-size:12px;line-height:1.8">仅在选择“第三方 OpenAI-compatible API”时使用。保存后加密存储在 D1，后台不会回显原始 Key；不填写不会删除已有 Key。</p>
+        <label>API Key</label>
+        <input name="external_ai_api_key" type="password" autocomplete="new-password" placeholder="留空保持不变" />
+        <p style="font-size:12px;color:var(--muted)">当前状态：<strong>${externalApiKeyConfigured ? "已配置" : "未配置"}</strong></p>
+      </div>
+<div class="card" id="externalAiCard" style="margin-bottom:16px">
         <h3 style="margin-top:0">④ 第三方 AI API</h3>
         <p style="color:var(--muted);font-size:12px;line-height:1.8">
           当前实现使用 OpenAI-compatible 的 \`/chat/completions\` 格式。可接入提供该兼容接口的模型服务；例如服务商通常会提供类似 \`https://example.com/v1\` 的 Base URL。
@@ -1892,7 +1917,14 @@ export function renderSettingsPage(settings: Record<string, string>, error = '',
         <textarea name="footer_disclaimer" rows="2" maxlength="500" placeholder="例如：本站内容仅供参考">${escapeHtml(settings.footer_disclaimer || '')}</textarea>
         <label>AI 内容声明 footer_ai_notice</label>
         <textarea name="footer_ai_notice" rows="2" maxlength="500" placeholder="可选。例如：部分内容可能经 AI 辅助整理，发布前已人工审核">${escapeHtml(settings.footer_ai_notice || '')}</textarea>
-        <label>底部链接 footer_links（每行：标签|路径或https地址）</label>
+        <div class="card" style="margin-top:16px">
+      <h3 style="margin-top:0">可选服务密钥（后台设置）</h3>
+      <p style="color:var(--muted);font-size:12px;line-height:1.8">首次 Cloudflare 部署不需要填写这些。保存后密钥会加密存储，后台只显示“已配置”，不会回显原文。</p>
+      <label>Resend API Key（邮件回复）</label>
+      <input name="resend_api_key" type="password" autocomplete="new-password" placeholder="留空保持不变" />
+      <label>Google Service Account JSON（可选收录 API）</label>
+      <textarea name="google_service_account_json" rows="4" autocomplete="off" placeholder="粘贴完整 JSON；留空保持不变"></textarea>
+    </div><label>底部链接 footer_links（每行：标签|路径或https地址）</label>
         <textarea name="footer_links" rows="3" maxlength="1500" placeholder="关于我们|/about\n联系我们|/contact">${escapeHtml(settings.footer_links || '')}</textarea>
       </div>
       <button class="btn" type="submit">保存设置</button>
