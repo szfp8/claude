@@ -1103,10 +1103,10 @@ export function renderKeywordsList(rows: any[], siteKeywords = '', message = '',
     ${renderSeoAuditPanel(seoAudit)}
     <div class="card" style="margin-bottom:16px">
       <h3 style="margin-top:0">固定关键词（全站候选词库）</h3>
-      <p style="color:var(--muted);font-size:13px;line-height:1.8">这里维护少量全站主题候选词，只用于辅助 AI 和内容规划，不会复制到所有城市、服务、文章页面。建议保留 5-15 个候选词；页面实际 seo_keywords 仍固定为 3-5 个与当前页面主题直接相关的词。</p>
+      <p style="color:var(--muted);font-size:13px;line-height:1.8">这里维护少量全站主题候选词，只用于辅助 AI 和内容规划。保存后不会自动改写任何页面 SEO；“一键规范全部页面 SEO”也不会修改这里的词库。建议保留 5-15 个候选词；页面实际 seo_keywords 仍固定为 3-5 个与当前页面主题直接相关的词。</p>
       <form class="admin-form" method="post" action="/admin/keywords/settings">
         <textarea name="site_keywords" rows="3" maxlength="3000" placeholder="例如：企业咨询,项目服务,解决方案,行业指南,服务流程">${escapeHtml(siteKeywords)}</textarea>
-        <button class="btn" type="submit">保存候选词库并规范页面SEO</button>
+        <button class="btn" type="submit">保存候选词库</button>
       </form>
     </div>
     <div class="admin-table-wrap">
