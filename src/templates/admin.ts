@@ -326,7 +326,7 @@ export function renderAdminUsersPage(rows: any[], error?: string): string {
     title: '管理员账号', active: '/admin/users',
     body: `
     <div class="section-title"><h2>管理员账号</h2></div>
-    <p style="color:var(--muted);font-size:13px">系统默认仅允许一个管理员。登录账号可以在这里修改邮箱和密码；不再提供新增管理账号按钮。</p>
+    <p style="color:var(--muted);font-size:13px;line-height:1.8">系统默认仅允许一个管理员。这里修改登录邮箱和密码；忘记密码时不要删除管理员，直接使用登录页“忘记密码？”并输入首次部署时保存的 <strong>SETUP_TOKEN</strong> 恢复。SETUP_TOKEN 不显示在后台，必须到 Cloudflare Worker → Settings → Variables and Secrets 中查看或更新。</p>
     ${error ? `<div class="card" style="border-left:4px solid #e5484d;color:#e5484d;margin-bottom:16px">${escapeHtml(error)}</div>` : ''}
     ${u ? `
     <div class="card">
@@ -339,6 +339,7 @@ export function renderAdminUsersPage(rows: any[], error?: string): string {
         <input type="password" name="password" placeholder="至少 10 位，含两类字符" minlength="10" maxlength="128" autocomplete="new-password" />
         <button class="btn" type="submit">保存管理员账号</button>
       </form>
+      <p style="margin:12px 0 0;color:var(--muted);font-size:12px">恢复入口：<a href="/admin/recover">忘记密码 / 使用 SETUP_TOKEN 恢复</a></p>
     </div>
     ` : '<p>尚未创建管理员，请先完成首次初始化。</p>'}
   `,
@@ -1893,13 +1894,20 @@ export function renderSettingsPage(settings: Record<string, string>, error = '',
         </p>
       </div>
 
-      <label>IndexNow Key</label>
-      <input name="indexnow_key" value="${escapeHtml(settings.indexnow_key || '')}" />
+      <div class="card admin-settings-card" style="margin:12px 0">
+        <h3 style="margin:0 0 6px">🔐 搜索引擎通知密钥</h3>
+        <p style="color:var(--muted);font-size:12px;line-height:1.8;margin:0 0 10px">这些不是首次部署必填项。保存后密钥加密存储，后台只显示“已配置”，不会回显原文。</p>
+        <label>IndexNow Key</label>
+        <input name="indexnow_key" type="password" autocomplete="new-password" placeholder="${settings.indexnow_key_configured === '1' ? '已配置，留空保持不变' : '可选：粘贴 IndexNow Key'}" />
+        <label style="display:flex;align-items:center;gap:8px;font-size:12px">
+          <input type="checkbox" name="clear_indexnow_key" value="on" /> 清除当前 IndexNow Key
+        </label>
+      </div>
       <label>百度搜索资源平台 Token</label>
       <input name="baidu_token" value="${escapeHtml(settings.baidu_token || '')}" />
       <div class="card admin-settings-card" style="margin:12px 0">
         <h3 style="margin:0 0 6px">📧 留言邮箱回复</h3>
-        <p style="color:var(--muted);font-size:12px;line-height:1.7;margin:0 0 10px">可选。配置 Resend API Key 后，后台留言可直接发送邮箱回复；未配置时仍可保存电话、微信、QQ或内部回复记录。</p>
+        <p style="color:var(--muted);font-size:12px;line-height:1.7;margin:0 0 10px">可选。配置 Resend API Key 后，后台留言可直接发送邮箱回复；未配置时仍可保存电话、微信、QQ或内部回复记录。首次部署不用在 Cloudflare Secret 里填写。</p>
         <label>发件地址 email_from</label>
         <input type="email" name="email_from" value="${escapeHtml(settings.email_from || '')}" placeholder="例如：noreply@example.com" />
         <label>默认 Reply-To email_reply_to</label>
@@ -1908,6 +1916,11 @@ export function renderSettingsPage(settings: Record<string, string>, error = '',
       <div class="card" style="margin:10px 0;padding:12px;background:#f8fbff;border-color:#dbe7f7">
         <strong>360 / 搜狗</strong>
         <p style="color:var(--muted);font-size:12px;line-height:1.7;margin:6px 0 0">白标基础模板不硬编码未经验证的旧推送 API。请在对应站长平台提交本站 <code>/sitemap.xml</code> 或按平台当前官方方式提交 URL。</p>
+      </div>
+      <div class="card admin-settings-card" style="margin:12px 0">
+        <h3 style="margin:0 0 6px">🔑 可选服务密钥状态</h3>
+        <p style="color:var(--muted);font-size:12px;line-height:1.8;margin:0 0 8px">Resend：${settings.resend_api_key_configured === '1' ? '已配置' : '未配置'}　·　Google Service Account：${settings.google_service_account_configured === '1' ? '已配置' : '未配置'}</p>
+        <p style="color:var(--muted);font-size:12px;line-height:1.8;margin:0">Google Indexing API 不是普通文章批量收录的必需项；普通页面优先使用 Sitemap + Search Console。</p>
       </div>
       <div class="card admin-settings-card" style="margin:12px 0">
         <h3 style="margin:0 0 6px">📄 Footer 页脚</h3>
