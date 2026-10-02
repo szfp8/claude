@@ -1,262 +1,150 @@
 # 部署架构与首次部署说明
 
-本文记录当前 `main` 分支实际部署代码的工作方式，避免后续复制白标 CMS 到新的 GitHub/Cloudflare 项目时误用旧的 `npx wrangler deploy` 流程。
+本文描述当前 `main` 分支的真实部署闭环。
 
-## 1. 当前部署入口
-
-仓库的唯一推荐部署入口是：
+## 1. 唯一生产部署入口
 
 ```bash
 npm run deploy
 ```
 
-`package.json` 将其指向：
+对应：
 
 ```text
-node scripts/deploy-all.mjs
+scripts/deploy-all.mjs
 ```
 
-`predeploy` 会先确认 Wrangler、`wrangler.toml`、部署脚本和部署命令存在且匹配。
+Cloudflare Workers Builds 的 Deploy command 必须是：
 
-## 2. 首次部署完整流程
+```text
+npm run deploy
+```
+
+不能改成单独的 `npx wrangler deploy`，否则会跳过 D1 migration 和部署后验收。
+
+## 2. 首次部署
 
 ```text
 Cloudflare Workers Builds
-        |
-        | Deploy command = npm run deploy
-        v
-scripts/deploy-all.mjs
-        |
-        +--> 检查远程 D1 migrations
-        |
-        | D1 尚未就绪
-        v
-第一次 wrangler deploy
-        |
-        +--> 创建/准备当前 Worker 所需资源
-        |
-        v
-wrangler d1 migrations apply DB --remote --yes
-        |
-        v
-第二次 wrangler deploy
-        |
-        v
-npm run postdeploy:check
-        |
-        v
-部署完成
-```
-
-如果远程 D1 已经存在，流程会跳过第一次资源准备部署，直接执行远程 migrations，然后重新部署 Worker。
-
-因此，**D1 migration 不在 Worker 打包阶段执行，而是在部署脚本中显式执行**。
-
-## 3. 为什么不能使用默认 Deploy command
-
-Cloudflare Workers Builds 如果使用：
-
-```text
-npx wrangler deploy
-```
-
-会直接发布 Worker，但不会自动调用仓库的：
-
-```text
-scripts/deploy-all.mjs
-```
-
-这样首次部署可能出现：
-
-```text
-Worker 已发布
-    |
-    +--> D1 binding 存在
-    |
-    +--> D1 schema 尚未迁移
-    |
-    +--> /healthz?probe=1
-             d1_schema = false
-             missing_tables = [...]
-```
-
-这也是首次部署后进入 `/admin/setup` 时可能表现为初始化异常的主要原因之一。
-
-因此 Workers Builds 的 **Deploy command 必须设置为**：
-
-```text
+        ↓
+npm ci
+        ↓
+npm run build
+        ↓
 npm run deploy
+        ↓
+远程 D1 migration probe
+        ↓
+D1 未就绪 → 首次 Worker deploy
+        ↓
+wrangler d1 migrations apply DB --remote
+        ↓
+Worker deploy
+        ↓
+postdeploy:check
+        ↓
+完成
 ```
 
-仓库代码可以检查并提示这一要求，但 GitHub 仓库本身不能替 Cloudflare Dashboard 修改该字段。
+D1 已存在并可访问时，会跳过首次准备部署，直接迁移并重新发布。
 
-## 4. Cloudflare 资源绑定
+## 3. Cloudflare 绑定
 
-`wrangler.toml` 保持白标模板，不绑定某一个具体客户的资源名称。
+当前绑定：
 
-当前核心绑定：
+| Binding | 类型 | 用途 |
+|---|---|---|
+| `DB` | D1 | CMS 数据 |
+| `CACHE_KV` | KV | 缓存、限流、JWT 自动密钥 |
+| `R2_MEDIA` | R2 | 媒体 |
+| `AI` | Workers AI | AI |
+| `ASSETS` | Assets | `public/` |
 
-| Binding | 用途 |
-| --- | --- |
-| `DB` | Cloudflare D1 数据库 |
-| `CACHE_KV` | 缓存、初始化状态和自动生成的会话密钥 |
-| `R2_MEDIA` | 媒体文件 |
-| `AI` | Workers AI |
-| `ASSETS` | `public/` 静态资源 |
+D1 只从 `[[d1_databases]]` 读取，绝不会把 `ASSETS` 当成 D1。
 
-D1 使用：
+## 4. 资源名称与账号隔离
+
+模板使用安全的默认资源名称：
 
 ```text
-migrations_dir = "migrations"
+white-label-cms-db
+white-label-cms-r2-media
 ```
 
-并且模板不固定具体 `database_name`、`bucket_name`，避免复制仓库后继续指向原项目资源。
-
-## 5. JWT_SECRET 首次部署行为
-
-当前 `src/utils/auth.ts` 支持不填写 `JWT_SECRET`。
-
-处理顺序：
+同时不提交：
 
 ```text
-JWT_SECRET 已配置
-    |
-    +--> 直接使用
-
-JWT_SECRET 未配置
-    |
-    v
-CACHE_KV
-    |
-    +--> 已有 __cms_jwt_secret
-    |       |
-    |       +--> 使用已有密钥
-    |
-    +--> 没有密钥
-            |
-            v
-        生成 32 字节随机密钥
-            |
-            v
-        保存到 CACHE_KV
-            |
-            v
-        后续请求复用
+database_id
+KV id
+Cloudflare API Token
+生产 Secret
 ```
 
-因此，标准白标部署不要求用户手工生成 JWT_SECRET。
+这样同一仓库可以在不同 Cloudflare 账号部署。
 
-如果生产环境希望把会话密钥从 KV 中独立出来，也可以在 Cloudflare Dashboard 中后续配置 `JWT_SECRET`。
+## 5. Worker 名称
 
-## 6. 推荐 Cloudflare Dashboard 配置
-
-新项目连接本仓库时：
+部署脚本支持 Cloudflare 注入的名称：
 
 ```text
-Production branch: main
-Root directory: /
-Build command: npm run build
-Deploy command: npm run deploy
-Node.js: 26.10.0
+WRANGLER_CI_OVERRIDE_NAME
+→ CLOUDFLARE_WORKER_NAME
+→ WORKER_NAME
+→ wrangler.toml name
 ```
 
-其中最关键的是：
+默认名称是：
 
 ```text
-Deploy command = npm run deploy
+white-label-cms
 ```
 
-Node 版本由：
+## 6. Secret
+
+标准生产部署需要在 Cloudflare 创建页面配置：
 
 ```text
-.nvmrc = 26.10.0
-package.json engines.node = 26.10.0
+JWT_SECRET
+SETUP_TOKEN
+PBKDF2_ITERATIONS
+INDEXNOW_KEY
 ```
 
-共同约束，GitHub Actions 也读取 `.nvmrc`。
-
-## 7. 部署后的健康检查
-
-部署脚本最后执行：
-
-```bash
-npm run postdeploy:check
-```
-
-部署完成后建议访问：
+Cloudflare UI 如果强制显示可选服务字段，则暂时使用：
 
 ```text
-/healthz?probe=1
+EXTERNAL_AI_API_KEY=unused
+RESEND_API_KEY=unused
+GOOGLE_SERVICE_ACCOUNT_JSON={}
 ```
 
-正常状态应满足：
+这些值只作为未启用服务的占位配置。
 
-```json
-{
-  "ok": true,
-  "bindings": {
-    "DB": true,
-    "CACHE_KV": true,
-    "R2_MEDIA": true,
-    "AI": true,
-    "ASSETS": true
-  },
-  "d1_schema": true,
-  "missing_tables": []
-}
-```
+## 7. 部署后验收
 
-如果出现：
+`npm run postdeploy:check` 会：
+
+1. 检查远程 D1 migration 状态。
+2. 从部署输出中获取 workers.dev URL（如果存在）。
+3. 调用 `/healthz?probe=1`。
+4. 检查 DB、KV、R2、AI、Assets 和 D1 schema。
+
+## 8. GitHub Actions
+
+唯一权威 CI：
 
 ```text
-d1_schema: false
-missing_tables: [...]
+.github/workflows/deploy.yml
 ```
 
-优先检查 Cloudflare Workers Builds 的 Deploy command，而不是重复创建 D1 binding。
+它验证仓库完整性和 Wrangler dry-run，不保存或生成生产 Cloudflare Secret。
 
-## 8. GitHub Actions 校验
+## 9. 最终原则
 
-`.github/workflows/deploy.yml` 当前负责验证：
-
-- Node 版本与 `.nvmrc` 一致
-- 所有 `.mjs` 脚本语法
-- 后台路由
-- 前台路由和链接完整性
-- SEO/GEO 发布契约
-- 白标内容
-- 管理后台禁止 GET mutation
-- Cloudflare 部署配置
-- D1 migration 命名
-- Contact Channels 字段
-- TypeScript build
-- 单元测试
-- 本地 D1 migration dry run
-- Wrangler dry run
-
-该 Workflow 是代码质量与部署配置的 CI 校验，**不是 Cloudflare Dashboard 的 Deploy command 设置器**。
-
-## 9. 复制到新 GitHub 仓库时
-
-复制本模板后，只需要让新项目：
-
-1. 使用 `main`。
-2. Cloudflare Workers Builds 指向新仓库。
-3. Root directory 保持 `/`。
-4. Deploy command 设置为 `npm run deploy`。
-5. Node 使用 26.10.0。
-6. 按实际站点需要配置 `SITE_NAME`、`SITE_URL`、`DEFAULT_CITY` 等运行时变量。
-7. 首次部署完成后检查 `/healthz?probe=1`。
-8. 确认 `d1_schema=true` 后再进行管理员初始化。
-
-## 10. 当前代码结论
-
-当前部署代码已经把“资源准备 → D1 migration → Worker 再部署 → 部署后检查”串成一个明确的脚本闭环。
-
-需要特别保留的设计原则：
-
-- 不把客户资源名称写死在模板。
-- 不把远程 D1 migration 放进 Wrangler build 阶段。
-- 不依赖人工填写 JWT_SECRET 才能完成标准首次部署。
-- 不用默认 `npx wrangler deploy` 替代 `npm run deploy`。
-- 不通过 README 掩盖部署问题，实际部署行为以 `package.json`、`scripts/deploy-all.mjs`、`wrangler.toml` 和 CI 检查为准。
+- 一个 GitHub 仓库：`szfp8/claude`
+- 一个生产部署入口：`npm run deploy`
+- 一个 D1 binding：`DB`
+- 不把 Assets 当 D1
+- 不提交账号专属 ID
+- 不提交生产 Secret
+- 首次资源创建后失败只重试，不重复创建
