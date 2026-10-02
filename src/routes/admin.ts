@@ -3326,7 +3326,7 @@ adminRoutes.post('/seo/auto-fill', async (c) => {
     const c1 = Number((cityResult as any)?.meta?.changes || 0)
     const c2 = Number((serviceResult as any)?.meta?.changes || 0)
     const c3 = Number((articleResult as any)?.meta?.changes || 0)
-    return c.redirect('/admin/keywords?message=' + encodeURIComponent('全部页面 SEO 已规范：城市 ' + c1 + '、服务 ' + c2 + '、文章 ' + c3 + ' 条元数据修复；城市/服务/文章主题词已统一为 3-5 个并与正文匹配。'))
+    return c.redirect('/admin/keywords?message=' + encodeURIComponent('已补齐内容页 SEO 元数据：城市 ' + c1 + '、服务 ' + c2 + '、文章 ' + c3 + ' 条；并统一页面主题词为 3-5 个。不会修改固定候选词库、Sitemap、Robots、GEO 或正文。'))
   } catch (e) {
     console.error('seo auto-fill failed', e)
     return c.redirect('/admin/keywords?error=' + encodeURIComponent('全部页面 SEO 规范失败：' + errorMessage(e, '未知错误')))
