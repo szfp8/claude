@@ -21,16 +21,13 @@ Node：`26.10.0`
 
 ## 2. Cloudflare 一键部署
 
-Deploy to Cloudflare：
-
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/szfp8/claude)
+使用 Cloudflare Dashboard → Workers & Pages → Create application → **Import a repository**，连接 GitHub 并选择现有 `szfp8/claude`。不要创建第二个 GitHub/GitLab 仓库。
 
 ### 必须这样选
 
 ```text
 GitHub                    = 当前 GitHub
-创建专用 Git 存储库       = 关闭
-仓库                      = szfp8/claude
+Git repository            = szfp8/claude
 Production branch         = main
 Root directory            = /
 Build command             = npm run build
@@ -107,9 +104,7 @@ npm run build
         ↓
 npm run deploy
         ↓
-检查远程 D1
-        ↓
-首次需要时先部署 Worker
+首次 Worker deploy / Cloudflare resource provisioning
         ↓
 wrangler d1 migrations apply DB --remote
         ↓
