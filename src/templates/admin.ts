@@ -1646,6 +1646,8 @@ export function renderAiSettingsPage(settings: {
   testProvider?: string
   testResponse?: string
   testMessage?: string
+  testTask?: string
+  testQuality?: string
 }): string {
   const modelOptions = [
     { id: '@cf/meta/llama-3.1-8b-instruct-fast', label: 'Llama 3.1 8B Fast（当前默认）', note: '速度快，适合批量新闻/城市/服务/文章生成' },
@@ -1664,7 +1666,7 @@ export function renderAiSettingsPage(settings: {
       新闻采集、城市/服务页面、文章正文/SEO、关键词落地页和多平台文案都会通过同一个 AI 路由。
     </p>
     ${settings.saved ? '<div class="card" style="border-left:4px solid #1a8a4e;color:#1a8a4e;margin-bottom:16px">AI 设置已保存，新的生成请求会立即使用新配置。</div>' : ''}
-    ${settings.test === 'ok' ? `<div class="card" style="border-left:4px solid #1a8a4e;color:#1a8a4e;margin-bottom:16px"><strong>AI 测试正常</strong><br><small>通道：${escapeHtml(settings.testProvider === 'openai_compatible' ? '外部 OpenAI-compatible API' : 'Workers AI')}；模型：${escapeHtml(activeTestModel || settings.model)}；返回：${escapeHtml(settings.testResponse || '')}</small></div>` : ''}
+    ${settings.test === 'ok' ? `<div class="card" style="border-left:4px solid #1a8a4e;color:#1a8a4e;margin-bottom:16px"><strong>AI 测试正常</strong><br><small>任务：${escapeHtml(settings.testTask === 'city' ? '城市页真实内容' : settings.testTask === 'article' ? '文章真实内容' : '基础连通性')}；通道：${escapeHtml(settings.testProvider === 'openai_compatible' ? '外部 OpenAI-compatible API' : 'Workers AI')}；模型：${escapeHtml(activeTestModel || settings.model)}</small><div style="margin-top:6px">${escapeHtml(settings.testQuality || '')}</div><pre style="white-space:pre-wrap;max-height:300px;overflow:auto;color:var(--text)">${escapeHtml(settings.testResponse || '')}</pre></div>` : ''}
     ${settings.test === 'disabled' ? '<div class="card" style="border-left:4px solid #e5484d;color:#e5484d;margin-bottom:16px"><strong>AI 当前已关闭</strong><br><small>请先打开“启用 AI 内容生成”，保存后再测试。</small></div>' : ''}
     ${settings.test === 'empty' ? '<div class="card" style="border-left:4px solid #e5484d;color:#e5484d;margin-bottom:16px"><strong>AI 调用成功，但没有解析到返回文本</strong></div>' : ''}
     ${settings.test === 'error' ? `<div class="card" style="border-left:4px solid #e5484d;color:#e5484d;margin-bottom:16px"><strong>AI 测试失败</strong><br><small>${escapeHtml(settings.testMessage || '未知错误')}</small></div>` : ''}
@@ -1746,9 +1748,13 @@ export function renderAiSettingsPage(settings: {
     </form>
 
     <div class="card" style="margin-top:16px;max-width:900px">
-      <h3 style="margin-top:0">AI 现场测试</h3>
-      <p style="color:var(--muted);font-size:12px;line-height:1.8">测试使用当前主要通道真实调用一次，只发送“只回复 ok”提示，不写入文章、不修改 D1 内容。若开启备用通道，只在主通道失败后再调用一次。</p>
-      <form method="post" action="/admin/ai-settings/test"><button class="btn secondary" type="submit">🧪 测试当前 AI 通道</button></form>
+      <h3 style="margin-top:0">AI 诊断测试</h3>
+      <p style="color:var(--muted);font-size:12px;line-height:1.8">基础连通性只能证明模型能返回文本。为避免“AI测试成功但文章无法保存”，这里增加真实内容任务测试：城市页/文章会走与正式生成相同的 JSON/HTML/长度质量链路，但不会写入业务数据。</p>
+      <form method="post" action="/admin/ai-settings/test" style="display:flex;gap:10px;align-items:end;flex-wrap:wrap">
+        <div><label>测试任务</label><select name="test_task"><option value="connectivity">基础连通性</option><option value="city">城市页真实内容</option><option value="article">文章真实内容</option></select></div>
+        <button class="btn secondary" type="submit">🧪 运行诊断</button>
+      </form>
+      <p style="font-size:12px;color:var(--muted);margin:10px 0 0">推荐：模型或提示词修改后，至少运行一次“城市页真实内容”或“文章真实内容”。</p>
     </div>
 
     <div class="card" style="margin-top:16px;max-width:900px">
