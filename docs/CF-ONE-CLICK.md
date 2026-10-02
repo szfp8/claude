@@ -55,19 +55,13 @@ Cloudflare 页面如果出现：
 
 首次部署不要把所有第三方服务密钥都塞进 Cloudflare。
 
-**真正建议首次保留的 Secret：**
+**首次部署 Secret：**
 
 ```text
-SETUP_TOKEN
+无需填写任何 Secret
 ```
 
-生成：
-
-```bash
-openssl rand -hex 32
-```
-
-保存好它，用于首次管理员初始化和忘记密码后的恢复。
+首次部署完成后直接打开 `/admin/setup` 创建唯一管理员。`SETUP_TOKEN` 仅作为可选的初始化保护/密码恢复兼容入口。
 
 以下变量都是可选：
 
