@@ -144,7 +144,7 @@ D1 migrations → Worker → postdeploy check
 
 ## 3. 首次部署只保留必要设置
 
-Cloudflare 创建 Worker 时不要一次填满所有第三方服务密钥。**首次部署真正建议保留的唯一 Secret 是 `SETUP_TOKEN`**，用于保护首个管理员初始化和忘记密码后的管理员恢复。
+Cloudflare 创建 Worker 时不要一次填满第三方服务密钥。**当前一键部署不需要任何 Secret**；首次部署完成后直接进入 `/admin/setup` 创建唯一管理员。`SETUP_TOKEN` 仅作为可选的初始化保护/密码恢复兼容入口。
 
 | 首次部署项目 | 是否需要 | 建议 |
 |---|---:|---|
