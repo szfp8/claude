@@ -41,7 +41,7 @@ import { SUBPROJECT_SECTIONS, normalizeSubprojectLayout, normalizeSubprojectSlug
 import { renderLayout, escapeHtml } from '../templates/layout'
 import { renderArticlePage } from '../templates/public'
 import {
-  renderLoginPage, renderSetupPage, renderDashboard, renderArticlesList, renderArticleForm, renderArticleAiPreview,
+  renderLoginPage, renderSetupPage, renderRecoverPage, renderDashboard, renderArticlesList, renderArticleForm, renderArticleAiPreview,
   renderCitiesList, renderKeywordsList, renderKeywordForm, renderMessagesList, renderNewsSourcesList,
   renderSeoPage, renderSettingsPage, renderCityForm, renderServiceForm, renderCollectionLogsList,
   renderSystemPage, renderAiSettingsPage, renderAiPromptsPage, renderAdminLayout, renderWechatEditor, renderSocialHub, renderSocialEditor, renderMediaPage, renderAdminUsersPage, renderPageSettingsPage, renderSubprojectsList, renderSubprojectForm,
