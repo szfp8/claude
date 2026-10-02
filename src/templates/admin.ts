@@ -1625,7 +1625,7 @@ export function renderAiSettingsPage(settings: {
         <p style="color:var(--muted);font-size:12px;line-height:1.8">仅在选择“第三方 OpenAI-compatible API”时使用。保存后加密存储在 D1，后台不会回显原始 Key；不填写不会删除已有 Key。</p>
         <label>API Key</label>
         <input name="external_ai_api_key" type="password" autocomplete="new-password" placeholder="留空保持不变" />
-        <p style="font-size:12px;color:var(--muted)">当前状态：<strong>${externalApiKeyConfigured ? "已配置" : "未配置"}</strong></p>
+        <p style="font-size:12px;color:var(--muted)">当前状态：<strong>${settings.externalApiKeyConfigured ? "已配置" : "未配置"}</strong></p>
       </div>
 <div class="card" id="externalAiCard" style="margin-bottom:16px">
         <h3 style="margin-top:0">④ 第三方 AI API</h3>
