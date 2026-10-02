@@ -15,6 +15,7 @@ const NAV = [
   { group: 'SEO', href: '/admin/services', label: '服务管理', pageKey: 'services', icon: '🧾' },
   { group: 'SEO', href: '/admin/subprojects', label: '子项目管理', icon: '🏷️' },
   { group: 'SEO', href: '/admin/seo', label: 'SEO / 推送', icon: '🚀' },
+  { group: 'SEO', href: '/admin/geo', label: 'GEO / AI搜索', icon: '🧭' },
   { group: 'AI', href: '/admin/ai-settings', label: 'AI 设置', icon: '🤖' },
   { group: 'AI', href: '/admin/ai-prompts', label: 'AI 提示词', icon: '🧠' },
   { group: '资源', href: '/admin/media', label: 'R2 媒体库', icon: '🖼️' },
@@ -1361,6 +1362,60 @@ export function renderNewsSourcesList(rows: any[], collectedArticles: any[] = []
       </tbody></table>
     </div>
   `,
+  })
+}
+
+export function renderGeoPage(opts: {
+  siteUrl: string
+  aiCrawlersEnabled: boolean
+  llmsEnabled: boolean
+  saved?: boolean
+}): string {
+  const crawlers = ['GPTBot', 'ClaudeBot', 'PerplexityBot', 'Google-Extended', 'Bytespider']
+  return renderAdminLayout({
+    title: 'GEO / AI 搜索', active: '/admin/geo',
+    body: `
+    <div class="section-title"><h2>🧭 GEO / AI 搜索</h2><a href="/admin/seo">SEO / 自然收录 →</a></div>
+    <p class="admin-help">GEO 不是“保证被 AI 引用”，而是让 AI/Agent 更容易理解网站主题、找到公开页面并正确引用。这里统一查看 <code>/llms.txt</code>、AI 爬虫白名单和结构化数据；最终是否抓取、索引或引用仍由对应平台决定。</p>
+    ${opts.saved ? '<div class="card" style="border-left:4px solid #1a8a4e;color:#1a8a4e;margin-bottom:16px">GEO 设置已保存。</div>' : ''}
+    <div class="grid grid-3">
+      <div class="card">
+        <h3 style="margin-top:0">llms.txt</h3>
+        <p style="font-size:12px;color:var(--muted);line-height:1.8">动态生成站点主题、服务、城市、最新公开文章、内容可信规则和 Sitemap。建议保持开启，不手工复制整站内容。</p>
+        <p><a class="btn secondary" href="/llms.txt" target="_blank">查看 /llms.txt</a></p>
+        <span class="badge">${opts.llmsEnabled ? '已启用' : '已关闭'}</span>
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0">AI 爬虫白名单</h3>
+        <p style="font-size:12px;color:var(--muted);line-height:1.8">开启后，robots.txt 会显式 Allow 主要 AI/答案引擎爬虫，同时继续禁止 /admin、/api、/healthz、/search。</p>
+        <div style="font-size:12px;line-height:1.8">${crawlers.map((name) => '<code>' + escapeHtml(name) + '</code>').join(' · ')}</div>
+        <p style="margin-top:10px"><a class="btn secondary" href="/robots.txt" target="_blank">查看 robots.txt</a></p>
+        <span class="badge">${opts.aiCrawlersEnabled ? '已允许' : '仅通用规则'}</span>
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0">结构化数据</h3>
+        <p style="font-size:12px;color:var(--muted);line-height:1.8">模板自动输出 Organization、WebSite、WebPage；文章页输出 Article，服务页输出 Service，城市页输出 WebPage/City。不要在 AI 提示词里重复生成 JSON-LD。</p>
+        <span class="badge">自动输出</span>
+        <p style="font-size:12px;margin-top:10px"><a href="https://search.google.com/test/rich-results" target="_blank" rel="noopener noreferrer">Google Rich Results Test →</a></p>
+      </div>
+    </div>
+    <form class="admin-form card" method="post" action="/admin/geo" style="margin-top:16px">
+      <h3 style="margin-top:0">GEO 控制</h3>
+      <label style="display:flex;align-items:center;gap:10px"><input type="checkbox" name="geo_ai_crawlers_enabled" ${opts.aiCrawlersEnabled ? 'checked' : ''} /> 显式允许主要 AI/答案引擎爬虫</label>
+      <label style="display:flex;align-items:center;gap:10px"><input type="checkbox" name="geo_llms_enabled" ${opts.llmsEnabled ? 'checked' : ''} /> 发布 /llms.txt</label>
+      <p style="font-size:12px;color:var(--muted);line-height:1.8">这两个开关只控制 GEO 辅助入口，不会隐藏正常公开页面，也不会改变 Sitemap。关闭 AI 爬虫白名单时，robots.txt 仍允许普通搜索引擎抓取公开内容。</p>
+      <button class="btn" type="submit">保存 GEO 设置</button>
+    </form>
+    <div class="card" style="margin-top:16px">
+      <h3 style="margin-top:0">上线检查</h3>
+      <ul>
+        <li>站点主题、行业、核心服务先在「系统设置」填写，GEO 文档会自动读取。</li>
+        <li>保持公开服务、城市、已发布文章可访问；不要为了 GEO 把后台、API 或搜索结果页开放给爬虫。</li>
+        <li>发布文章后先人工核验事实，再依靠 Sitemap/通知和 AI 可抓取页面进行发现。</li>
+        <li>结构化数据只描述页面真实内容；不要虚构评分、评论、价格、资质等字段。</li>
+      </ul>
+    </div>
+  `
   })
 }
 
