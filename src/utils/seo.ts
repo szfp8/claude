@@ -1,6 +1,7 @@
 import type { Bindings } from '../types'
 import { getProtectedSecret } from './protectedSecrets'
 import { submitGoogleIndexing } from './googleIndexing'
+import { getProtectedSecret } from './protectedSecrets'
 import { MIN_INDEXABLE_OPPORTUNITY_SCORE } from './keywordScore'
 
 async function getSetting(env: Bindings, key: string): Promise<string | null> {
@@ -146,6 +147,9 @@ async function log(env: Bindings, engine: string, url: string, statusCode: numbe
 }
 
 export async function getIndexNowKey(env: Bindings): Promise<string | undefined> {
+  // 新站优先使用后台加密配置；保留旧版明文 settings 与 Cloudflare Secret 作为兼容兜底。
+  const protectedKey = await getProtectedSecret(env, 'INDEXNOW_KEY')
+  if (protectedKey) return protectedKey
   const setting = await env.DB.prepare("SELECT value FROM settings WHERE key='indexnow_key'").first()
   return (setting as any)?.value || env.INDEXNOW_KEY
 }
