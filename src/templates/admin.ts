@@ -1555,6 +1555,7 @@ export function renderAiSettingsPage(settings: {
   externalModel: string
   externalTimeoutMs: number
   fallbackEnabled: boolean
+  externalApiKeyConfigured?: boolean
   saved?: boolean
   test?: string
   testModel?: string
