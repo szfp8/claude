@@ -4322,12 +4322,19 @@ adminRoutes.post('/settings/generate-industry-keywords', async (c) => {
     const aiSettings = await getAiSettings(c.env)
     if (!aiSettings.enabled) return c.redirect('/admin/settings?error=' + encodeURIComponent('AI 功能当前已停用，请先在 AI 设置中启用。'))
     const promptSettings = await getAiPromptSettings(c.env)
+    const articleRows = (await c.env.DB.prepare("SELECT title, summary, content FROM articles WHERE status='published' ORDER BY published_at DESC, id DESC LIMIT 8").all()).results as any[]
+    const serviceRows = (await c.env.DB.prepare("SELECT name, summary FROM services WHERE is_active=1 ORDER BY sort_order, id LIMIT 20").all()).results as any[]
+    const contentEvidence = [
+      ...articleRows.map((row) => [row.title, row.summary, String(row.content || '').replace(/<[^>]+>/g, ' ').slice(0, 700)].filter(Boolean).join('：')),
+      ...serviceRows.map((row) => [row.name, row.summary].filter(Boolean).join('：')),
+    ].join('\n').slice(0, 9000)
     const prompt = await composeAiPromptWithSystemContacts(c.env, promptSettings, 'keyword', {
       siteName: settings.site_name || c.env.SITE_NAME || '网站内容平台',
       subject: settings.site_topic || settings.site_industry || '',
       keywords: [settings.primary_keywords || '', settings.industry_keywords || ''].filter(Boolean).join('、'),
       services: settings.primary_services || '',
-      task: '根据当前站点名称、主题、行业、核心服务和已有主题词生成行业关键词候选；去除无关词、品牌词和同义重复词。',
+      sourceContent: contentEvidence,
+      task: '根据当前站点名称、主题、行业、核心服务、已有主题词以及已发布文章/服务的真实内容，自动识别行业高频主题、业务场景、用户问题和核心实体词；去除无关词、品牌词、同义重复词。只返回可由站点公开内容证明的关键词候选。',
     }, aiSettings)
     const result = await runConfiguredAi(c.env, { messages: [{ role: 'user', content: prompt }] }, aiSettings)
     const parsed = parseAiJson(getAiResponseText(result).trim()) as any
