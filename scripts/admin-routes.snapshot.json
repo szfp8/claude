@@ -37,10 +37,6 @@
   },
   {
     "method": "GET",
-    "path": "/articles/image-upload"
-  },
-  {
-    "method": "GET",
     "path": "/articles/new"
   },
   {
