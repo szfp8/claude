@@ -47,7 +47,7 @@ Cloudflare 页面如果出现：
 | Workers AI | `AI` |
 | Assets | `ASSETS` |
 
-如果当前账号还没有这些资源，可以在 Cloudflare 创建页面创建；创建后必须绑定到上述名称。
+通常让当前 Deploy 流程按仓库模板准备资源即可；如果 Cloudflare 页面明确要求选择已有资源，只选择当前账号中的对应资源，并保持上述 Binding 名称不变。
 
 **不要把其他账号的 database ID、KV ID 写进仓库。**
 
