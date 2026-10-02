@@ -73,8 +73,34 @@ export function renderLayout(opts: LayoutOptions, body: string): string {
   const organizationJsonLd: Record<string, unknown> = {
     '@context': 'https://schema.org',
     '@type': 'Organization',
+    '@id': siteUrl + '/#organization',
     name: siteName,
     url: siteUrl,
+  }
+  const webSiteJsonLd: Record<string, unknown> = {
+    '@context': 'https://schema.org',
+    '@type': 'WebSite',
+    '@id': siteUrl + '/#website',
+    name: siteName,
+    url: siteUrl,
+    publisher: { '@id': siteUrl + '/#organization' },
+    inLanguage: locale === 'zh-CN' ? 'zh-CN' : 'en-US',
+    potentialAction: {
+      '@type': 'SearchAction',
+      target: siteUrl + '/search?q={search_term_string}',
+      'query-input': 'required name=search_term_string',
+    },
+  }
+  const webPageJsonLd: Record<string, unknown> = {
+    '@context': 'https://schema.org',
+    '@type': 'WebPage',
+    '@id': canonical + '#webpage',
+    url: canonical,
+    name: title,
+    description,
+    isPartOf: { '@id': siteUrl + '/#website' },
+    about: { '@id': siteUrl + '/#organization' },
+    inLanguage: locale === 'zh-CN' ? 'zh-CN' : 'en-US',
   }
   if (contactMethods?.phones.length) {
     organizationJsonLd.contactPoint = contactMethods.phones.map((telephone) => ({
@@ -137,6 +163,7 @@ export function renderLayout(opts: LayoutOptions, body: string): string {
 <meta name="twitter:description" content="${escapeHtml(description)}" />
 <!-- meta keywords 已停用：现代搜索引擎主要依据页面内容、标题、链接和结构化信号判断主题，避免全站关键词堆叠。 -->
 <link rel="canonical" href="${canonical}" />
+<link rel="describedby" href="${siteUrl}/llms.txt" />
 <meta property="og:title" content="${escapeHtml(title)}" />
 <meta property="og:description" content="${escapeHtml(description)}" />
 <meta property="og:type" content="website" />
