@@ -4310,6 +4310,9 @@ adminRoutes.get('/settings', async (c) => {
   const rows = (await c.env.DB.prepare("SELECT key, value FROM settings WHERE key NOT LIKE 'ai_page:%' AND key NOT LIKE 'ai_%' AND key NOT LIKE 'secret:%'").all()).results as any[]
   const map: Record<string, string> = {}
   for (const r of rows) map[r.key] = r.value
+  map.indexnow_key_configured = (await getIndexNowKey(c.env)) ? '1' : '0'
+  map.resend_api_key_configured = (await hasProtectedSecret(c.env, 'RESEND_API_KEY') || !!String(c.env.RESEND_API_KEY || '').trim()) ? '1' : '0'
+  map.google_service_account_configured = (await hasProtectedSecret(c.env, 'GOOGLE_SERVICE_ACCOUNT_JSON') || !!String(c.env.GOOGLE_SERVICE_ACCOUNT_JSON || '').trim()) ? '1' : '0'
   return c.html(renderSettingsPage(map, c.req.query('error') || '', c.req.query('saved') === '1', c.req.query('ai') || ''))
 })
 adminRoutes.post('/settings/ai-seo', async (c) => {
@@ -4397,7 +4400,7 @@ adminRoutes.post('/settings', async (c) => {
     site_name: 80, site_title: 200, site_description: 1000,
     site_topic: 120, site_industry: 80, primary_services: 1000,
     primary_keywords: 1200, industry_keywords: 1600, news_categories: 500,
-    email_from: 200, email_reply_to: 200, indexnow_key: 200,
+    email_from: 200, email_reply_to: 200,
     baidu_token: 200, so_token: 200, sogou_token: 200,
     footer_copyright: 200, footer_disclaimer: 500, footer_ai_notice: 500, footer_links: 1500,
   }
@@ -4409,11 +4412,16 @@ adminRoutes.post('/settings', async (c) => {
   // Use /admin/modules/contact (Contact Channels) API instead.
 
     const protectedSecrets: Array<[string, string]> = [
+    ['INDEXNOW_KEY', String((b as any).indexnow_key || '').trim()],
     ['RESEND_API_KEY', String((b as any).resend_api_key || '').trim()],
     ['GOOGLE_SERVICE_ACCOUNT_JSON', String((b as any).google_service_account_json || '').trim()],
   ]
   for (const [name, secret] of protectedSecrets) {
     if (secret) await saveProtectedSecret(c.env, name, secret)
+  }
+  if (String((b as any).clear_indexnow_key || '') === 'on') {
+    await saveProtectedSecret(c.env, 'INDEXNOW_KEY', '')
+    await c.env.DB.prepare("DELETE FROM settings WHERE key='indexnow_key'").run()
   }
 
 if (Object.keys(updates).length) {
