@@ -89,7 +89,7 @@ Disallow: /api
 Disallow: /healthz
 Disallow: /search
 
-\${allowAiCrawlers ? `User-agent: GPTBot
+${allowAiCrawlers ? `User-agent: GPTBot
 Allow: /
 Disallow: /admin
 Disallow: /api
