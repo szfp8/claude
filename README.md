@@ -412,7 +412,7 @@ AI 不绕过人工审核直接公开。AI 生成内容不是“不能发布”�
 
 ### SEO 性能优化
 不要把“静态化”当成唯一性能方案。优先保持页面服务端渲染、使用已有 KV/Worker Cache、内容变更后主动清理缓存、图片放 R2、CSS/JS 等固定资源走 Assets，并让 Sitemap/Robots/llms.txt 按变更主动清理。
-## 10. Worker 名称
+## 12. Worker 名称
 
 `wrangler.toml` 默认：
 
@@ -431,7 +431,7 @@ WRANGLER_CI_OVERRIDE_NAME
 
 因此不要为了某个账号手工写入账号专属名称。
 
-## 11. D1 首次部署闭环
+## 13. D1 首次部署闭环
 
 `npm run deploy` 会：
 
@@ -445,7 +445,7 @@ D1 binding 固定读取 `[[d1_databases]]` 的 `DB`，不会把 Assets 的 `ASSE
 
 如果首次部署已经创建了 Worker、KV、D1、R2，后续步骤失败时**不要删除并重新创建资源**，直接修复失败步骤后重试。
 
-## 12. 部署后验收
+## 14. 部署后验收
 
 访问：
 
@@ -480,7 +480,7 @@ missing_tables = []
 
 配置站点信息。
 
-## 13. 手动部署
+## 15. 手动部署
 
 仓库已经包含完整手动入口，但它与 Cloudflare 一键部署使用同一套代码：
 
@@ -500,13 +500,13 @@ Build command  = npm run build
 Deploy command = npm run deploy
 ```
 
-## 14. CI
+## 16. CI
 
 GitHub Actions 会执行脚本语法、仓库完整性、路由、白标、SEO/GEO、D1 migrations、TypeScript、测试和 Wrangler dry-run。
 
 CI 是仓库质量闸门；Cloudflare Workers Builds 才负责生产发布。
 
-## 15. 安全
+## 17. 安全
 
 不要提交：
 
@@ -521,7 +521,7 @@ CI 是仓库质量闸门；Cloudflare Workers Builds 才负责生产发布。
 - 用户数据
 - 生产数据库导出
 
-## 16. 版本
+## 18. 版本
 
 当前版本：**v1.0.0**
 
