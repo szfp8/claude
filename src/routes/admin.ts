@@ -2551,10 +2551,7 @@ adminRoutes.post('/keywords/cleanup', async (c) => {
     }
   }
 
-  // 选择性清理后才需要重新规范页面 SEO；全量清理已经删除关键词/AI页面，不再做大范围 D1 回写，降低一次性 CPU。
-  if (!cleanupAllGenerated) {
-    await syncPageSeoKeywords(c.env)
-  }
+  // 清理只负责删除无效/重复生产数据，不隐式改写页面 SEO；页面 SEO 批量规范统一从 /admin/seo/auto-fill 执行。
   const after = await getSeoGeneratedPageStats(c.env)
 
   // 全量清理时使用 Workers Cache 的 purgeEverything；普通选择性清理仍保持原有逻辑。
@@ -4248,7 +4245,6 @@ adminRoutes.post('/settings/generate-industry-keywords', async (c) => {
     const merged = normalizeKeywordCandidates([...String(settings.industry_keywords || '').split(/[,，;；\n、]+/), ...candidates], 30)
     if (!merged.length) throw new Error('AI没有返回可用行业关键词，请先填写站点行业、主题或核心服务。')
     await saveSetting(c.env, 'industry_keywords', merged.join(','))
-    await syncPageSeoKeywords(c.env)
     c.executionCtx.waitUntil(purgeCacheAll(c.executionCtx))
     return c.redirect('/admin/settings?saved=1&ai=industry-keywords')
   } catch (e) {
@@ -4459,9 +4455,8 @@ async function rescoreAllKeywords(env: Bindings): Promise<number> {
 adminRoutes.post('/keywords/rescore', async (c) => {
   try {
     const changed = await rescoreAllKeywords(c.env)
-    await syncPageSeoKeywords(c.env)
     c.executionCtx.waitUntil(purgeCacheAll(c.executionCtx))
-    return c.redirect('/admin/keywords?message=' + encodeURIComponent('机会分已重新计算：更新 ' + changed + ' 条关键词，并同步规范页面 SEO。'))
+    return c.redirect('/admin/keywords?message=' + encodeURIComponent('机会分已重新计算：更新 ' + changed + ' 条关键词；页面 SEO 未被改写。'))
   } catch (e) {
     console.error('keyword rescore failed', e)
     return c.redirect('/admin/keywords?error=' + encodeURIComponent('机会分重算失败：' + errorMessage(e, '未知错误')))
