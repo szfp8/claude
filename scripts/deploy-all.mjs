@@ -2,7 +2,7 @@
 /**
  * Cloudflare Workers 白标一键部署闭环。
  *
- * 目标：Fork 到新的 Cloudflare 账号后，不依赖旧 D1/KV/R2 资源。
+ * 目标：Fork 到新的 Cloudflare 账号后，只使用当前副本的资源配置。
  */
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -49,31 +49,12 @@ function getD1Binding() {
   return text.match(/binding\s*=\s*["']([^"']+)["']/)?.[1] || 'DB'
 }
 
-function findD1() {
-  const result = run(['d1', 'list', '--json'], true)
-  if (result.status !== 0) return null
-
-  try {
-    const dbs = JSON.parse(result.stdout || '[]')
-    if (!Array.isArray(dbs)) return null
-
-    const workerName = process.env.WRANGLER_CI_OVERRIDE_NAME || process.env.CLOUDFLARE_WORKER_NAME || process.env.WORKER_NAME
-    const candidates = workerName
-      ? dbs.filter((db) => db.name?.includes(workerName))
-      : []
-
-    return candidates[0] || dbs.find((db) => db.name?.toLowerCase().includes(getD1Binding().toLowerCase())) || null
-  } catch {
-    return null
-  }
-}
-
 try {
   const probe = run(['d1', 'migrations', 'list', getD1Binding(), '--remote', '--config', 'wrangler.toml'], true)
   let initialOutput = ''
 
   if (probe.status !== 0) {
-    console.log('D1 尚未就绪，执行首次部署创建 Cloudflare 资源…')
+    console.log('D1 尚未就绪，执行首次部署创建/绑定当前 Cloudflare 资源…')
     const first = run(deployArgs(), true)
     initialOutput = `${first.stdout || ''}\n${first.stderr || ''}`
     process.stdout.write(first.stdout || '')
@@ -81,11 +62,11 @@ try {
     fail(first, 'Initial deploy')
   }
 
-  const d1 = findD1()
-  if (d1) console.log(`Detected D1: ${d1.name} ${d1.uuid || d1.id || ''}`)
-
   console.log('→ 应用 D1 migrations')
-  fail(run(['d1', 'migrations', 'apply', getD1Binding(), '--remote', '--config', 'wrangler.toml']), 'D1 migration')
+  fail(
+    run(['d1', 'migrations', 'apply', getD1Binding(), '--remote', '--config', 'wrangler.toml']),
+    'D1 migration',
+  )
 
   console.log('→ 发布 Worker')
   const deploy = run(deployArgs(), true)
