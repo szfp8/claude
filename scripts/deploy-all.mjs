@@ -31,8 +31,10 @@ function run(args, capture = false) {
 
 function deployArgs() {
   const args = ['deploy', '--config', 'wrangler.toml']
-  const name = process.env.CLOUDFLARE_WORKER_NAME || process.env.WORKER_NAME
-  if (name && !process.env.WRANGLER_CI_OVERRIDE_NAME) args.push('--name', name)
+  const name = process.env.WRANGLER_CI_OVERRIDE_NAME
+    || process.env.CLOUDFLARE_WORKER_NAME
+    || process.env.WORKER_NAME
+  if (name) args.push('--name', name)
   return args
 }
 
