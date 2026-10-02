@@ -154,6 +154,34 @@ export function renderSocialHub(article: any, platforms: PlatformConfig[], posts
 }
 
 // ---- 单平台编辑/预览/复制页 ----
+export function renderSocialDistributionPage(rows: any[], platforms: PlatformConfig[]): string {
+  const statusLabel: Record<string, string> = { not_synced: '未生成', ready: '待人工发布', copied: '已复制', scheduled: '已排期' }
+  return renderAdminLayout({
+    title: '国内内容分发', active: '/admin/social',
+    body: `
+    <div class="section-title"><h2>📣 国内内容分发</h2><a href="/admin/articles">内容管理 →</a></div>
+    <p class="admin-help">官网文章人工发布后，系统自动生成四个平台的发布包。此页用于统一查看状态并进入编辑。</p>
+    <div class="grid grid-4" style="margin-bottom:16px">
+      ${platforms.map((p) => '<div class="card"><strong>' + p.icon + ' ' + escapeHtml(p.label) + '</strong><p style="font-size:12px;color:var(--muted);margin:6px 0">' + escapeHtml(p.helpText) + '</p><span class="badge">' + escapeHtml(p.copyMode === 'richtext' ? '富文本复制' : '纯文本复制') + '</span></div>').join('')}
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">已发布文章的发布包</h3>
+      <div class="admin-table-wrap">
+        <table>
+          <thead><tr><th>文章</th><th>发布时间</th><th>抖音</th><th>快手</th><th>小红书</th><th>哔哩哔哩</th><th>操作</th></tr></thead>
+          <tbody>
+          ${rows.length ? rows.map((row) => {
+            const cell = (key: string) => '<span class="badge">' + escapeHtml(statusLabel[String(row[key] || 'not_synced')]) + '</span>'
+            return '<tr><td><strong>' + escapeHtml(row.title || '') + '</strong></td><td>' + escapeHtml(row.published_at || '') + '</td><td>' + cell('douyin_status') + '</td><td>' + cell('kuaishou_status') + '</td><td>' + cell('xiaohongshu_status') + '</td><td>' + cell('bilibili_status') + '</td><td><a class="btn secondary" href="/admin/articles/' + encodeURIComponent(String(row.id)) + '/social">打开发布包</a></td></tr>'
+          }).join('') : '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:28px">暂无已发布文章</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    `
+  })
+}
+
 export function renderSocialEditor(article: any, config: PlatformConfig, post: any, copyPayload: string): string {
   const status = post?.status || 'not_synced'
   const hashtags = post?.hashtags || ''
