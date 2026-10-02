@@ -7,7 +7,8 @@ import { existsSync, readFileSync } from 'node:fs'
 const checks = []
 const ok = (name, result, detail = '') => checks.push({ name, result, detail })
 
-ok('Node version', Number(process.versions.node.split('.')[0]) >= 20, process.versions.node)
+const REQUIRED_NODE = '26.10.0'
+ok('Node version', process.versions.node === REQUIRED_NODE, `${process.versions.node} (required ${REQUIRED_NODE})`)
 ok('package.json', existsSync('package.json'))
 ok('wrangler.toml', existsSync('wrangler.toml'))
 ok('deploy script', existsSync('scripts/deploy-all.mjs'))
