@@ -166,7 +166,7 @@ adminRoutes.get('/login', async (c) => {
     console.error('D1 login bootstrap check failed', e)
     return c.html(renderLoginPage('系统正在初始化，请稍后重试。'))
   }
-  return c.html(renderLoginPage())
+  return c.html(renderLoginPage(c.req.query('recovered') === '1' ? '管理员账号已恢复，请使用新密码登录。' : undefined))
 })
 
 adminRoutes.post('/login', async (c) => {
@@ -4307,7 +4307,7 @@ adminRoutes.get('/page-nav-labels', async (c) => {
 })
 
 adminRoutes.get('/settings', async (c) => {
-  const rows = (await c.env.DB.prepare("SELECT key, value FROM settings WHERE key NOT LIKE 'ai_page:%' AND key NOT LIKE 'ai_%'").all()).results as any[]
+  const rows = (await c.env.DB.prepare("SELECT key, value FROM settings WHERE key NOT LIKE 'ai_page:%' AND key NOT LIKE 'ai_%' AND key NOT LIKE 'secret:%'").all()).results as any[]
   const map: Record<string, string> = {}
   for (const r of rows) map[r.key] = r.value
   return c.html(renderSettingsPage(map, c.req.query('error') || '', c.req.query('saved') === '1', c.req.query('ai') || ''))
