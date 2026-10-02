@@ -51,8 +51,10 @@ Cloudflare Access= 关闭
 首次部署 Secret：
 
 ```text
-SETUP_TOKEN = openssl rand -hex 32
+无需填写任何 Secret
 ```
+
+首次部署完成后直接打开 `/admin/setup` 创建唯一管理员。`SETUP_TOKEN` 仅在需要额外保护初始化或密码恢复时配置。
 
 可选兼容 Secret（首次部署不需要）：
 
