@@ -48,17 +48,24 @@ Preview Builds   = 关闭
 Cloudflare Access= 关闭
 ```
 
-Secrets：
+首次部署 Secret：
 
 ```text
-JWT_SECRET                  = openssl rand -hex 32
-SETUP_TOKEN                 = openssl rand -hex 32
-PBKDF2_ITERATIONS           = 100000
-INDEXNOW_KEY                = openssl rand -hex 16
-EXTERNAL_AI_API_KEY         = unused（不用时）
-RESEND_API_KEY              = unused（不用时）
-GOOGLE_SERVICE_ACCOUNT_JSON = {}（不用时）
+SETUP_TOKEN = openssl rand -hex 32
 ```
+
+可选兼容 Secret（首次部署不需要）：
+
+```text
+JWT_SECRET            = 可选；不填由 CACHE_KV 自动生成
+PBKDF2_ITERATIONS     = 可选；默认值即可
+INDEXNOW_KEY          = 后台「系统设置」配置
+EXTERNAL_AI_API_KEY   = 后台「AI 设置」配置
+RESEND_API_KEY        = 后台「系统设置」配置
+GOOGLE_SERVICE_ACCOUNT_JSON = 后台「系统设置」配置
+```
+
+后台密钥不会回显，应用会加密保存。
 
 ## 3. 部署闭环
 
@@ -83,8 +90,12 @@ postdeploy:check
 [ ] /healthz?probe=1
 [ ] DB / CACHE_KV / R2_MEDIA / AI / ASSETS
 [ ] d1_schema=true
-[ ] /admin/setup
-[ ] /admin/settings
+[ ] /admin/setup（创建唯一管理员）
+[ ] /admin/settings（站点 / IndexNow / Resend / Google 按需配置）
+[ ] /admin/ai-settings（AI 通道 / 模型 / 外部 Key）
+[ ] /admin/ai-prompts（统一提示词）
+[ ] /admin/keywords（候选词 / 机会分 / 矩阵 / 页面 SEO 分工）
+[ ] /admin/seo（Sitemap / Robots / 收录通知）
 ```
 
 如果第一轮已经创建 Worker、D1、KV、R2，后续步骤失败时不要重新创建资源，直接修复失败步骤并重新部署。
