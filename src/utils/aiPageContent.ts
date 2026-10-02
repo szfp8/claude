@@ -24,14 +24,29 @@ function ensureReadableStructure(html: string): string {
   if (!source) return source
   if ((source.match(/<h[23]>/gi) || []).length >= 3) return source
 
+  const headings = ['适用对象与常见场景', '办理流程与材料准备', '风险与注意事项', '下一步行动建议']
   const paragraphs = source.match(/<p>[^]*?<\/p>/gi) || []
   if (paragraphs.length >= 4) {
-    const headings = ['适用对象与常见场景', '办理流程与材料准备', '风险与注意事项', '下一步行动建议']
     const out: string[] = []
     paragraphs.forEach((paragraph, index) => {
       if (index < headings.length) out.push('<h2>' + headings[index] + '</h2>')
       out.push(paragraph)
     })
+    return out.join('')
+  }
+
+  // 模型有时返回完整纯文本而不是 HTML。不要因为缺少标签误判为无效，
+  // 将自然段/句子按内容职责分成可读小节，再交给最终质量门槛检查。
+  const plain = source.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+  const sentences = plain.split(/(?<=[。！？.!?])\s*/).filter(Boolean)
+  if (sentences.length >= 8) {
+    const chunkSize = Math.ceil(sentences.length / 4)
+    const out: string[] = []
+    for (let index = 0; index < 4; index += 1) {
+      const chunk = sentences.slice(index * chunkSize, (index + 1) * chunkSize).join('')
+      if (!chunk) continue
+      out.push('<h2>' + headings[index] + '</h2><p>' + escapeText(chunk) + '</p>')
+    }
     return out.join('')
   }
 
