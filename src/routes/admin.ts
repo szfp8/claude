@@ -537,6 +537,9 @@ adminRoutes.post('/articles/new', async (c) => {
         publishedSiteUrl,
         c.executionCtx,
       )
+      c.executionCtx.waitUntil(
+        syncPublishedArticleToDomesticPlatforms(c.env, Number(created.id)).catch((e) => console.error('new published article platform sync failed', e))
+      )
     }
   }
   await purgeCacheAll(c.executionCtx)
