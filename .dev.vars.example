@@ -1,5 +1,3 @@
-# 本文件用于 Deploy to Cloudflare 按钮展示首次部署所需的 Secret。
-# 首次部署只需要 SETUP_TOKEN；其他第三方密钥由后台按需配置，避免首次部署被无关密钥阻塞。
-# 本地开发如需模拟第三方服务，可在未提交的 .dev.vars 中自行添加对应变量。
-
-SETUP_TOKEN=
+# Deploy to Cloudflare 不需要预填任何第三方 Secret。
+# 首次部署完成后直接打开 /admin/setup 创建唯一管理员。
+# 本地开发如需使用 Secret，请在未提交的 .dev.vars 中自行配置。
