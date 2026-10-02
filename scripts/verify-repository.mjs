@@ -4,7 +4,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 const root = process.cwd()
-const requiredFiles = ['package.json','package-lock.json','wrangler.toml','src/index.ts','scripts/deploy-all.mjs','scripts/postdeploy-check.mjs','migrations/0001_init.sql','VERSION','CHANGELOG.md']
+const requiredFiles = ['package.json','package-lock.json','wrangler.toml','src/index.ts','scripts/deploy-all.mjs','scripts/postdeploy-check.mjs','src/utils/protectedSecrets.ts','migrations/0001_init.sql','VERSION','CHANGELOG.md']
 const requiredDirs = ['src','public','migrations','scripts','.github/workflows']
 let failed = false
 function check(label, ok) { console.log(`${ok ? '✓' : '✗'} ${label}`); if (!ok) failed = true }
