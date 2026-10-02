@@ -1,8 +1,7 @@
 keep_vars = true
 
-# 白标模板不绑定客户名称。
-# Cloudflare Workers Builds 会注入实际 Worker 名称。
-# deploy-all.mjs 负责检查并连接当前环境资源。
+# Template defaults are safe to customize during Deploy to Cloudflare.
+# Never commit account-specific resource IDs.
 name = "white-label-cms"
 main = "src/index.ts"
 compatibility_date = "2026-09-29"
@@ -18,10 +17,9 @@ enabled = true
 directory = "./public"
 binding = "ASSETS"
 
-# D1 binding is stable. database_name is intentionally not hardcoded.
-# Each Cloudflare account gets its own provisioned D1 resource.
 [[d1_databases]]
 binding = "DB"
+database_name = "white-label-cms-db"
 migrations_dir = "migrations"
 migrations_pattern = "migrations/*.sql"
 
@@ -30,6 +28,7 @@ binding = "CACHE_KV"
 
 [[r2_buckets]]
 binding = "R2_MEDIA"
+bucket_name = "white-label-cms-r2-media"
 
 [ai]
 binding = "AI"
