@@ -8,14 +8,14 @@ export type AiPageContent = { title: string; summary: string; content: string }
 
 function prepareModelContent(value: string): string {
   let text = String(value || '')
-    .replace(/^\\s*\\`\\`\\`(?:html|markdown|md|text)?\\s*/i, '')
-    .replace(/\\s*\\`\\`\\`\\s*$/i, '')
-    .replace(/^(#{2,3})\\s+(.+)$/gm, (_match, hashes, heading) => '<h' + (hashes.length === 2 ? '2' : '3') + '>' + String(heading).trim() + '</h' + (hashes.length === 2 ? '2' : '3') + '>')
-    .replace(/^\\s*[-*]\\s+(.+)$/gm, '<li>$1</li>')
+    .replace(/^\s*\`\`\`(?:html|markdown|md|text)?\s*/i, '')
+    .replace(/\s*\`\`\`\s*$/i, '')
+    .replace(/^(#{2,3})\s+(.+)$/gm, (_match, hashes, heading) => '<h' + (hashes.length === 2 ? '2' : '3') + '>' + String(heading).trim() + '</h' + (hashes.length === 2 ? '2' : '3') + '>')
+    .replace(/^\s*[-*]\s+(.+)$/gm, '<li>$1</li>')
     .trim()
 
   // 模型偶尔把连续的 Markdown 列表返回成裸 <li>；补成合法列表结构。
-  text = text.replace(/(?:<li>[^<]*(?:<[^>]+>[^<]*)?<\\/li>\\s*){2,}/g, (block) => '<ul>' + block + '</ul>')
+  text = text.replace(/(?:<li>[^<]*(?:<[^>]+>[^<]*)?<\/li>\s*){2,}/g, (block) => '<ul>' + block + '</ul>')
   return text
 }
 
@@ -24,7 +24,7 @@ function ensureReadableStructure(html: string): string {
   if (!source) return source
   if ((source.match(/<h[23]>/gi) || []).length >= 3) return source
 
-  const paragraphs = source.match(/<p>[^]*?<\\/p>/gi) || []
+  const paragraphs = source.match(/<p>[^]*?<\/p>/gi) || []
   if (paragraphs.length >= 4) {
     const headings = ['适用对象与常见场景', '办理流程与材料准备', '风险与注意事项', '下一步行动建议']
     const out: string[] = []
