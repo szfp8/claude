@@ -167,7 +167,7 @@ Deploy to Cloudflare
   ↓
 Worker / D1 / KV / R2 / AI / Assets
   ↓
-只配置 SETUP_TOKEN
+无需配置任何 Secret
   ↓
 打开 /admin/setup 创建唯一管理员
   ↓
