@@ -352,7 +352,7 @@ Sitemap 是“**允许搜索引擎发现的公开 URL 清单**”，不是“已
 
 从“新建文章”路径直接选择发布时，也会自动生成四个平台的发布包。
 
-## 5. Worker 名称
+## 10. Worker 名称
 
 `wrangler.toml` 默认：
 
@@ -371,7 +371,7 @@ WRANGLER_CI_OVERRIDE_NAME
 
 因此不要为了某个账号手工写入账号专属名称。
 
-## 6. D1 首次部署闭环
+## 11. D1 首次部署闭环
 
 `npm run deploy` 会：
 
@@ -385,7 +385,7 @@ D1 binding 固定读取 `[[d1_databases]]` 的 `DB`，不会把 Assets 的 `ASSE
 
 如果首次部署已经创建了 Worker、KV、D1、R2，后续步骤失败时**不要删除并重新创建资源**，直接修复失败步骤后重试。
 
-## 7. 部署后验收
+## 12. 部署后验收
 
 访问：
 
@@ -420,7 +420,7 @@ missing_tables = []
 
 配置站点信息。
 
-## 8. 手动部署
+## 13. 手动部署
 
 仓库已经包含完整手动入口，但它与 Cloudflare 一键部署使用同一套代码：
 
@@ -440,13 +440,13 @@ Build command  = npm run build
 Deploy command = npm run deploy
 ```
 
-## 9. CI
+## 14. CI
 
 GitHub Actions 会执行脚本语法、仓库完整性、路由、白标、SEO/GEO、D1 migrations、TypeScript、测试和 Wrangler dry-run。
 
 CI 是仓库质量闸门；Cloudflare Workers Builds 才负责生产发布。
 
-## 10. 安全
+## 15. 安全
 
 不要提交：
 
@@ -461,7 +461,7 @@ CI 是仓库质量闸门；Cloudflare Workers Builds 才负责生产发布。
 - 用户数据
 - 生产数据库导出
 
-## 11. 版本
+## 16. 版本
 
 当前版本：**v1.0.0**
 
