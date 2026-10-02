@@ -2587,11 +2587,1593 @@ adminRoutes.get('/keywords', async (c) => {
   }
   const message = c.req.query('error')
     || (c.req.query('keywords_saved') === '1' ? '固定关键词（全站候选词库）已保存；不会被“一键规范全部页面 SEO”自动改写。' : '')
-    || (c.req.query('ai') === '1' ? 'AI关键词已生成并追加到全站候选词库；页面 SEO 仍按各页面主题单独规范。' : '')\n\n<TEST_INSTRUCTION>这是提示词管理后台的测试，不要写入数据库。严格按照当前任务要求输出；只返回最终内容，不要解释提示词。</TEST_INSTRUCTION>'
+    || (c.req.query('ai') === '1' ? 'AI关键词已生成并追加到全站候选词库；页面 SEO 仍按各页面主题单独规范。' : '')
+    || (params.allGeneratedKeywords || params.allGeneratedArticles || params.allGeneratedAiPages
+      ? '生产库全量清理完成：SEO关键词 ' + (params.allGeneratedKeywords || '0') + ' 条；AI文章 ' + (params.allGeneratedArticles || '0') + ' 篇；AI SEO页面设置 ' + (params.allGeneratedAiPages || '0') + ' 条；已同步删除文章审核日志/社交分发关联记录，并在返回前清理公开缓存。'
+      : (params.cleanedCount || params.duplicateCleaned || params.cleanedPages || params.cleanedArticles || params.lowScoreArticles
+        ? '生产库清理完成：无效关键词 ' + (params.cleanedCount || '0') + ' 条；重复关键词 ' + (params.duplicateCleaned || '0') + ' 条；有效 Sitemap SEO 落地页 ' + (params.cleanedPages || '0') + ' 个；已发布 AI 文章 ' + (params.cleanedArticles || '0') + ' 篇；AI评分低于 ' + params.aiScoreThreshold + ' 的已发布 AI 文章 ' + (params.lowScoreArticles || '0') + ' 篇，并已同步清理关联日志/分发记录及公开缓存。'
+        : ''))
+  const cleanupPending = seoStats.keywordCleanup + seoStats.duplicateKeywords + seoStats.invalidTotal
+  return c.html(renderKeywordsList(rows as any, siteKeywords, message, cleanupPending, seoStats, seoAudit))
+})
+
+adminRoutes.post('/keywords/ai-generate', async (c) => {
+  try {
+    const settings = await readSettingsMap(c.env)
+    const cityRows = (await c.env.DB.prepare("SELECT name FROM cities WHERE is_active=1 ORDER BY sort_order, id LIMIT 30").all()).results as any[]
+    const serviceRows = (await c.env.DB.prepare("SELECT name FROM services WHERE is_active=1 ORDER BY sort_order, id LIMIT 30").all()).results as any[]
+    const existing = String(settings.site_keywords || '').trim()
+    const generated = await generateAiKeywords(c.env, {
+      cities: cityRows.map((row) => String(row.name || '')).filter(Boolean),
+      services: serviceRows.map((row) => String(row.name || '')).filter(Boolean),
+      existingKeywords: existing,
+    })
+    if (!generated.length) {
+      const status = await getAiRouteStatus(c.env)
+      const message = status.ok ? aiEmptyResultMessage('AI关键词生成', status.settings) : status.message
+      return c.redirect('/admin/keywords?error=' + encodeURIComponent(message))
+    }
+
+    const oldKeywords = getKeywordList(existing)
+    // 全站词库只保留少量主题词；页面 SEO 使用各自的城市/服务/文章意图，不再把全站词复制到每一页。
+    const siteKeywords = normalizeKeywordCandidates([...oldKeywords, ...generated], 15).join(',')
+    await saveSetting(c.env, 'site_keywords', siteKeywords)
+    await syncPageSeoKeywords(c.env)
+    c.executionCtx.waitUntil(purgeCacheAll(c.executionCtx))
+    return c.redirect('/admin/keywords?ai=1')
+  } catch (e) {
+    console.error('AI keyword generation failed', e)
+    return c.redirect('/admin/keywords?error=' + encodeURIComponent(errorMessage(e, 'AI关键词生成失败')))
+  }
+})
+
+adminRoutes.post('/keywords/settings', async (c) => {
+  const b = await c.req.parseBody()
+  const siteKeywords = normalizeKeywordCandidates(String(b.site_keywords || ''), 15).join(',')
+  await saveSetting(c.env, 'site_keywords', siteKeywords)
+  // 固定关键词（全站候选词库）是人工维护的数据源；保存它不能反过来重写城市/服务/文章的页面 SEO。
+  await purgeCacheAll(c.executionCtx)
+  c.header('Cache-Control', 'no-store')
+  return c.redirect('/admin/keywords?keywords_saved=1')
+})
+
+// 一键生成/更新“城市 × 服务”关键词矩阵；保留人工搜索量，并统一重新计算机会分。
+async function generateKeywordMatrix(env: Bindings): Promise<number> {
+  const result = await env.DB.prepare(
+    `INSERT INTO keywords
+      (keyword, city_id, service_id, status, difficulty, opportunity_score, landing_slug, city_weight, service_weight)
+     SELECT
+      c.name || s.name, c.id, s.id, 'pending',
+      CASE
+        WHEN c.tier='一线' AND COALESCE(s.demand_weight,50)>=70 THEN '高'
+        WHEN c.tier='一线' OR COALESCE(s.demand_weight,50)>=70 THEN '中'
+        ELSE '低'
+      END,
+      CAST(ROUND(
+        (
+          (CASE c.tier WHEN '一线' THEN 100 WHEN '新一线' THEN 75 WHEN '二线' THEN 55 WHEN '三线' THEN 35 ELSE 50 END) * 0.5
+          + COALESCE(s.demand_weight,50) * 0.3
+          + (100 - CASE
+              WHEN c.tier='一线' AND COALESCE(s.demand_weight,50)>=70 THEN 55
+              WHEN c.tier='一线' OR COALESCE(s.demand_weight,50)>=70 THEN 30
+              ELSE 10
+            END) * 0.2
+        ) * 0.8
+      ) AS INTEGER),
+      c.slug || '-' || s.slug,
+      CASE c.tier WHEN '一线' THEN 100 WHEN '新一线' THEN 75 WHEN '二线' THEN 55 WHEN '三线' THEN 35 ELSE 50 END,
+      COALESCE(s.demand_weight,50)
+     FROM cities c CROSS JOIN services s
+     WHERE c.is_active=1 AND s.is_active=1
+     ON CONFLICT(city_id, service_id) DO UPDATE SET
+       keyword=excluded.keyword,
+       difficulty=excluded.difficulty,
+       landing_slug=excluded.landing_slug,
+       city_weight=excluded.city_weight,
+       service_weight=excluded.service_weight`
+  ).run()
+  const changed = Number((result as any)?.meta?.changes || 0)
+  await rescoreAllKeywords(env)
+  return changed
+}
+
+adminRoutes.post('/keywords/generate', async (c) => {
+  try {
+    const changed = await generateKeywordMatrix(c.env)
+    await syncPageSeoKeywords(c.env)
+    c.executionCtx.waitUntil(purgeCacheAll(c.executionCtx))
+    return c.redirect('/admin/keywords?message=' + encodeURIComponent('关键词矩阵已生成/更新：处理 ' + changed + ' 条城市×服务记录，并按统一规则重新计算机会分。'))
+  } catch (e) {
+    console.error('keyword matrix generation failed', e)
+    return c.redirect('/admin/keywords?error=' + encodeURIComponent('关键词矩阵生成失败：' + errorMessage(e, '未知错误')))
+  }
+})
+
+adminRoutes.get('/keywords/:id/edit', async (c) => {
+  const kw = await c.env.DB.prepare('SELECT * FROM keywords WHERE id=?').bind(c.req.param('id')).first()
+  if (!kw) return c.notFound()
+  const settings = await readSettingsMap(c.env)
+  const aiContent = await getAiContentEntryDb(c.env, settings, 'landing', String((kw as any).landing_slug || ''))
+  const landingKey = String((kw as any).landing_slug || '')
+  const pageContact = getPageContact(settings, 'landing:' + landingKey, getContactMethods(settings))
+  return c.html(renderKeywordForm(kw, aiContent, pageContact))
+})
+
+adminRoutes.post('/keywords/:id/delete', async (c) => {
+  const id = c.req.param('id')
+  const kw = await c.env.DB.prepare('SELECT landing_slug FROM keywords WHERE id=?').bind(id).first() as any
+  if (!kw) return c.notFound()
+  const settings = await readSettingsMap(c.env)
+  const store = getAiContentStore(settings)
+  if (kw.landing_slug) delete store.landing[String(kw.landing_slug)]
+  await c.env.DB.prepare('DELETE FROM keywords WHERE id=?').bind(id).run()
+  if (kw.landing_slug) await c.env.DB.prepare('DELETE FROM settings WHERE key=?').bind(aiContentSettingKey('landing', String(kw.landing_slug))).run()
+  await saveSetting(c.env, 'ai_page_content_json', saveAiContentStore(store))
+  await purgeCacheAll(c.executionCtx)
+  c.header('Cache-Control', 'no-store')
+  return c.redirect('/admin/keywords')
+})
+
+adminRoutes.post('/keywords/:id/content/delete', async (c) => {
+  const id = c.req.param('id')
+  const kw = await c.env.DB.prepare('SELECT landing_slug FROM keywords WHERE id=?').bind(id).first() as any
+  if (!kw) return c.notFound()
+  const settings = await readSettingsMap(c.env)
+  const store = getAiContentStore(settings)
+  if (kw.landing_slug) delete store.landing[String(kw.landing_slug)]
+  if (kw.landing_slug) await c.env.DB.prepare('DELETE FROM settings WHERE key=?').bind(aiContentSettingKey('landing', String(kw.landing_slug))).run()
+  await saveSetting(c.env, 'ai_page_content_json', saveAiContentStore(store))
+  c.executionCtx.waitUntil(purgeCacheAll(c.executionCtx))
+  return c.redirect('/admin/keywords/' + id + '/edit')
+})
+
+adminRoutes.post('/keywords/:id/ai-content', async (c) => {
+  const id = c.req.param('id')
+  const kw = await c.env.DB.prepare(
+    `SELECT k.*, ci.name as city_name, ci.slug as city_slug, ci.tier as city_tier,
+            s.name as service_name, s.slug as service_slug, s.demand_weight as service_weight
+     FROM keywords k
+     LEFT JOIN cities ci ON ci.id=k.city_id
+     LEFT JOIN services s ON s.id=k.service_id
+     WHERE k.id=?`
+  ).bind(id).first() as any
+  if (!kw) return c.notFound()
+  const ai = await generateAiPageContent(c.env, {
+    type: 'landing',
+    city: kw.city_name,
+    service: kw.service_name,
+    keyword: kw.keyword,
+    weight: Number(kw.opportunity_score || 0),
+  })
+  if (!ai) {
+    const status = await getAiRouteStatus(c.env)
+    return c.text(status.ok ? aiEmptyResultMessage('AI落地页生成', status.settings) : status.message, 503)
+  }
+  const key = kw.landing_slug || (kw.city_slug + '-' + kw.service_slug)
+  await saveSetting(c.env, aiContentSettingKey('landing', key), JSON.stringify({ ...ai, weight: Number(kw.opportunity_score || 0), updatedAt: new Date().toISOString() }))
+  c.executionCtx.waitUntil(purgeCacheAll(c.executionCtx))
+  return c.redirect('/admin/keywords/' + id + '/edit')
+})
+
+adminRoutes.post('/keywords/:id/edit', async (c) => {
+  const id = c.req.param('id')
+  const b = await c.req.parseBody()
+  const searchVolume = parseInt(String(b.search_volume || '0'), 10) || 0
+  const difficulty = String(b.difficulty || '中')
+  const kw = await c.env.DB.prepare(
+    `SELECT k.*, ci.tier as city_tier, s.demand_weight as service_weight
+     FROM keywords k LEFT JOIN cities ci ON ci.id=k.city_id LEFT JOIN services s ON s.id=k.service_id WHERE k.id=?`
+  ).bind(id).first() as any
+  const score = calcOpportunityScore({ tier: kw.city_tier || '二线', serviceWeight: kw.service_weight ?? 50, difficulty, searchVolume })
+  await c.env.DB.prepare(
+    'UPDATE keywords SET search_volume=?, difficulty=?, opportunity_score=?, note=?, status=? WHERE id=?'
+  ).bind(searchVolume, difficulty, score, b.note || '', b.status || kw.status, id).run()
+  const settings = await readSettingsMap(c.env)
+  const landingKey = String((kw as any).landing_slug || '')
+  return c.redirect('/admin/keywords')
+})
+
+// ---- 服务列表(简单页,复用城市列表模板风格由 renderServiceForm 链接进入)----
+// ---- 采集任务运行日志 ----
+adminRoutes.get('/collection-logs', async (c) => {
+  const rows = (await c.env.DB.prepare('SELECT * FROM collection_logs ORDER BY created_at DESC LIMIT 100').all()).results
+  const message = c.req.query('deleted') === 'all' ? '已一键删除全部采集日志。' : ''
+  return c.html(renderCollectionLogsList(rows as any, message))
+})
+
+adminRoutes.post('/collection-logs/delete-all', async (c) => {
+  try {
+    await c.env.DB.prepare('DELETE FROM collection_logs').run()
+  } catch (e) {
+    console.error('delete all collection logs failed', e)
+    return c.text('删除全部采集日志失败', 500)
+  }
+  return c.redirect('/admin/collection-logs?deleted=all')
+})
+
+adminRoutes.post('/collection-logs/:id/delete', async (c) => {
+  const id = Number(c.req.param('id'))
+  if (!id) return c.notFound()
+  try {
+    await c.env.DB.prepare('DELETE FROM collection_logs WHERE id=?').bind(id).run()
+  } catch (e) {
+    console.error('delete collection log failed', e)
+    return c.text('删除采集日志失败', 500)
+  }
+  return c.redirect('/admin/collection-logs')
+})
+
+// ---- 新闻采集源 ----
+adminRoutes.get('/news-sources', async (c) => {
+  const rows = (await c.env.DB.prepare('SELECT * FROM news_sources ORDER BY id DESC').all()).results
+  const collectedArticles = (await c.env.DB.prepare("SELECT id, title, slug, source_name, source_url, status, created_at FROM articles WHERE ai_generated=1 ORDER BY created_at DESC LIMIT 200").all()).results
+  const settings = await readSettingsMap(c.env)
+  const schedule = {
+    enabled: settings.news_collection_enabled === '1',
+    time: /^\d{2}:[0-5]\d$/.test(settings.news_collection_time || '') ? settings.news_collection_time : '08:00',
+  }
+  const message = c.req.query('error')
+    || (c.req.query('started') === '1' ? '采集任务已在后台启动。请稍后查看“采集日志”确认抓取、AI解读和自动发布结果。' : '')
+    || (c.req.query('collected') === '1' ? '新闻采集完成：AI通过质量门槛后按当前“自动发布”设置处理；失败或低质量内容不会发布。' : '')
+    || (c.req.query('schedule_saved') === '1' ? '定时采集时间已保存。' : '')
+  return c.html(renderNewsSourcesList(rows as any, collectedArticles as any, message, schedule))
+})
+
+
+adminRoutes.post('/news-sources/collect', async (c) => {
+  c.executionCtx.waitUntil(
+    runNewsCollection(c.env, undefined, c.executionCtx, resolveSiteUrl(c)).catch((e) => console.error('manual news collection failed', e))
+  )
+  return c.redirect('/admin/news-sources?started=1')
+})
+
+adminRoutes.post('/news-sources/:id/collect', async (c) => {
+  const id = Number(c.req.param('id'))
+  if (!id) return c.notFound()
+  const source = await c.env.DB.prepare('SELECT id FROM news_sources WHERE id=?').bind(id).first()
+  if (!source) return c.notFound()
+  c.executionCtx.waitUntil(
+    runNewsCollection(c.env, id, c.executionCtx, resolveSiteUrl(c)).catch((e) => console.error('single news source collection failed', e))
+  )
+  return c.redirect('/admin/news-sources?started=1')
+})
+
+adminRoutes.post('/news-sources/:id/analyze', async (c) => {
+  const id = Number(c.req.param('id'))
+  if (!id) return c.notFound()
+  const source = await c.env.DB.prepare('SELECT id, name, feed_url FROM news_sources WHERE id=? LIMIT 1').bind(id).first() as any
+  if (!source) return c.notFound()
+
+  const aiSettings = await getAiSettings(c.env)
+  if (!aiSettings.enabled) {
+    return c.redirect('/admin/news-sources/' + id + '/edit?error=' + encodeURIComponent('AI 功能当前已停用，请先在 AI 设置中启用。'))
+  }
+
+  c.executionCtx.waitUntil(
+    (async () => {
+      try {
+        const result = await analyzeNewsSource(c.env, String(source.feed_url || ''), String(source.name || ''), aiSettings)
+        await saveSetting(
+          c.env,
+          'news_source_analysis:' + String(id),
+          JSON.stringify({
+            status: result.analysis ? 'ok' : 'no-candidates',
+            sourceUrl: String(source.feed_url || ''),
+            method: result.analysis?.method || 'ai-source-page',
+            summary: result.analysis?.summary || 'AI 已分析来源页面，但没有识别到可核验的新闻候选。',
+            items: result.analysis?.items || [],
+            updatedAt: new Date().toISOString(),
+          }),
+        )
+      } catch (e) {
+        console.error('manual AI source analysis failed', source.feed_url, e)
+        await saveSetting(
+          c.env,
+          'news_source_analysis:' + String(id),
+          JSON.stringify({
+            status: 'error',
+            sourceUrl: String(source.feed_url || ''),
+            summary: errorMessage(e, '来源分析失败').slice(0, 1200),
+            items: [],
+            updatedAt: new Date().toISOString(),
+          }),
+        )
+      }
+    })(),
+  )
+  return c.redirect('/admin/news-sources/' + id + '/edit?analyzing=1')
+})
+
+adminRoutes.post('/news-sources/:id/analyze-publish', async (c) => {
+  const id = Number(c.req.param('id'))
+  if (!id) return c.notFound()
+  const source = await c.env.DB.prepare('SELECT id, name, feed_url FROM news_sources WHERE id=? LIMIT 1').bind(id).first() as any
+  if (!source) return c.notFound()
+
+  const form = await c.req.parseBody()
+  const candidateIndex = Number(form.candidate_index)
+  if (!Number.isInteger(candidateIndex) || candidateIndex < 0) {
+    return c.redirect('/admin/news-sources/' + id + '/edit?error=' + encodeURIComponent('没有选择有效的 AI 候选'))
+  }
+
+  const analysisRow = await c.env.DB.prepare('SELECT value FROM settings WHERE key=?')
+    .bind('news_source_analysis:' + String(id)).first() as any
+  let analysis: any = null
+  try { analysis = analysisRow?.value ? JSON.parse(String(analysisRow.value)) : null } catch {}
+  const candidates = Array.isArray(analysis?.items) ? analysis.items : []
+  const candidate = candidates[candidateIndex]
+  if (!candidate?.title || !candidate?.link) {
+    return c.redirect('/admin/news-sources/' + id + '/edit?error=' + encodeURIComponent('该 AI 候选已不存在，请先重新分析来源地址 / 列表页'))
+  }
+
+  const aiSettings = await getAiSettings(c.env)
+  if (!aiSettings.enabled) {
+    return c.redirect('/admin/news-sources/' + id + '/edit?error=' + encodeURIComponent('AI 功能当前已停用，请先在 AI 设置中启用'))
+  }
+
+  c.executionCtx.waitUntil(
+    publishAnalyzedNewsCandidate(c.env, id, {
+      title: String(candidate.title || ''),
+      link: String(candidate.link || ''),
+      evidence: String(candidate.evidence || ''),
+      confidence: Number(candidate.confidence || 0),
+    }, resolveSiteUrl(c), c.executionCtx).catch(async (e) => {
+      const errorText = errorMessage(e, '发布失败').slice(0, 1200)
+      console.error('publish analyzed news candidate failed', {
+        sourceId: id,
+        candidateIndex,
+        error: errorText,
+      })
+      try {
+        await c.env.DB.prepare(
+          'INSERT INTO collection_logs (source_name, fetched_count, created_count, published_count, error) VALUES (?, 1, 0, 0, ?)'
+        ).bind(String(source.name || '新闻来源'), '候选 AI 解读发布异常：' + errorText).run()
+      } catch (logError) {
+        console.error('write candidate publish failure log failed', logError)
+      }
+      try {
+        await saveSetting(
+          c.env,
+          'news_source_analysis_publish_error:' + String(id),
+          JSON.stringify({
+            candidateIndex,
+            title: String(candidate.title || ''),
+            link: String(candidate.link || ''),
+            error: errorMessage(e, '发布失败').slice(0, 1200),
+            updatedAt: new Date().toISOString(),
+          }),
+        )
+      } catch {}
+    }),
+  )
+  return c.redirect('/admin/news-sources/' + id + '/edit?publishing=1')
+})
+
+adminRoutes.post('/news-sources/schedule', async (c) => {
+  const b = await c.req.parseBody()
+  const enabled = b.enabled ? '1' : '0'
+  const time = String(b.collection_time || '').trim()
+  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) {
+    return c.redirect('/admin/news-sources?error=' + encodeURIComponent('定时任务时间格式不正确'))
+  }
+  const minute = Number(time.slice(3, 5))
+  if (minute % 5 !== 0) {
+    return c.redirect('/admin/news-sources?error=' + encodeURIComponent('定时任务目前按 5 分钟一个时间点设置，例如 08:00、08:05、18:30'))
+  }
+  await saveSetting(c.env, 'news_collection_enabled', enabled)
+  await saveSetting(c.env, 'news_collection_time', time)
+  await saveSetting(c.env, 'news_auto_publish', '0')
+  return c.redirect('/admin/news-sources?schedule_saved=1')
+})
+
+adminRoutes.post('/news-sources/articles/:id/recreate', async (c) => {
+  const id = Number(c.req.param('id'))
+  if (!id) return c.notFound()
+  const article = await c.env.DB.prepare('SELECT * FROM articles WHERE id=? AND ai_generated=1').bind(id).first() as any
+  if (!article) return c.notFound()
+  const slug = 'news-copy-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8)
+  try {
+    const created = await c.env.DB.prepare(
+      `INSERT INTO articles
+        (title, slug, category, summary, content, source_url, source_name, ai_generated, credibility_score,
+         status, published_at, seo_title, seo_keywords, seo_description, card_svg, ai_score, slides_json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, 'draft', NULL, ?, ?, ?, ?, ?, ?)
+       RETURNING id`
+    ).bind(
+      String(article.title || '').trim(), slug, String(article.category || '政策解读'),
+      String(article.summary || '').trim(), String(article.content || '').trim() || '<p>请补充文章正文。</p>',
+      String(article.source_url || ''), String(article.source_name || ''), Number(article.credibility_score || 70),
+      String(article.seo_title || '').trim(), String(article.seo_keywords || '').trim(), String(article.seo_description || '').trim(),
+      article.card_svg || null, Number(article.ai_score || 60), article.slides_json || '[]',
+    ).first() as any
+    await c.env.DB.prepare(
+      'INSERT INTO review_logs (article_id, action, operator, note) VALUES (?, ?, ?, ?)'
+    ).bind(created.id, 'copy_for_edit', 'admin', '已采集文章重新提交创建为新的草稿').run()
+    c.executionCtx.waitUntil(purgeCacheAll(c.executionCtx))
+    return c.redirect('/admin/news-sources?collected=1')
+  } catch (e) {
+    console.error('recreate collected article failed', e)
+    return c.redirect('/admin/news-sources?error=' + encodeURIComponent(errorMessage(e, '重新创建文章失败')))
+  }
+})
+
+adminRoutes.get('/news-sources/:id/edit', async (c) => {
+  const id = Number(c.req.param('id'))
+  if (!id) return c.notFound()
+  const source = await c.env.DB.prepare('SELECT * FROM news_sources WHERE id=? LIMIT 1').bind(id).first() as any
+  if (!source) return c.notFound()
+  const analysisRow = await c.env.DB.prepare('SELECT value FROM settings WHERE key=?').bind('news_source_analysis:' + String(id)).first() as any
+  let sourceAnalysis: any = null
+  try { sourceAnalysis = analysisRow?.value ? JSON.parse(String(analysisRow.value)) : null } catch {}
+  const analysisItems = Array.isArray(sourceAnalysis?.items) ? sourceAnalysis.items : []
+  const analysisStatus = String(sourceAnalysis?.status || '')
+  const analysisBadge = analysisStatus === 'ok'
+    ? '<span class="badge" style="background:#e7f7ee;color:#1a8a4e">AI分析完成</span>'
+    : analysisStatus === 'error'
+      ? '<span class="badge" style="background:#fdeaea;color:#e5484d">AI分析失败</span>'
+      : analysisStatus === 'no-candidates'
+        ? '<span class="badge" style="background:#fff7e6;color:#ad6800">未识别候选</span>'
+        : ''
+  const analysisHtml = sourceAnalysis ? `
+      <div class="card" style="margin-top:16px">
+        <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap">
+          <h3 style="margin:0">AI来源地址 / 列表页分析</h3>
+          ${analysisBadge}
+        </div>
+        <p style="color:var(--muted);font-size:13px;line-height:1.8;margin:8px 0">
+          ${escapeHtml(String(sourceAnalysis.summary || ''))}
+          ${sourceAnalysis.updatedAt ? '<br>分析时间：' + escapeHtml(String(sourceAnalysis.updatedAt)) : ''}
+        </p>
+        ${analysisItems.length ? `
+          <table style="margin-top:10px">
+            <thead><tr><th>候选标题</th><th>链接</th><th>证据摘录</th><th>置信度</th><th>操作</th></tr></thead>
+            <tbody>
+              ${analysisItems.map((item: any, i: number) => `
+                <tr>
+                  <td>${escapeHtml(String(item?.title || ''))}</td>
+                  <td style="max-width:280px;word-break:break-all"><a href="${escapeHtml(String(item?.link || ''))}" target="_blank" rel="nofollow noopener">${escapeHtml(String(item?.link || ''))}</a></td>
+                  <td style="max-width:420px;font-size:12px;line-height:1.6">${escapeHtml(String(item?.evidence || ''))}</td>
+                  <td>${Math.round(Number(item?.confidence || 0) * 100)}%</td>
+                  <td>
+                    <form method="post" action="${'/admin/news-sources/' + source.id + '/analyze-publish'}" style="display:inline">
+                      <input type="hidden" name="candidate_index" value="${i}" />
+                      <button class="btn secondary" type="submit" onclick="return confirm('将重新抓取这条候选详情页，由 AI 生成独立解读并进入待审核；管理员人工审核通过后才会公开。确认继续？')">🤖 AI整理并进入待审核</button>
+                    </form>
+                  </td>
+                </tr>`).join('')}
+            </tbody>
+          </table>` : '<p style="color:var(--muted);font-size:13px">没有可靠候选链接。系统不会因为 AI 无法确认来源而编造文章。</p>'}
+      </div>` : ''
+  return c.html(renderAdminLayout({
+    title: '修改新闻来源',
+    active: '/admin/news-sources',
+    body: `
+      <div class="section-title">
+        <h2>修改新闻来源</h2>
+        <a href="/admin/news-sources" style="color:var(--muted);font-size:13px">← 返回新闻采集管理</a>
+      </div>
+      <p style="color:var(--muted);font-size:13px;line-height:1.8">
+        修改后，下次“立即抓取”会使用新的来源地址。来源地址可以是新闻列表页、RSS/Atom 或 JSON 接口；系统会先尝试直连与 Reader，再在列表页结构异常时让 AI 分析“已抓取页面快照”，识别标题、真实文章链接和页面证据；详情页再单独抓取。AI 不能凭空联网或猜造 URL。
+      </p>
+      ${c.req.query('analyzing') === '1' ? '<div class="card" style="border-left:4px solid #1677ff;color:#1677ff;margin-bottom:12px">AI来源分析已启动。刷新本页查看分析结果。</div>' : ''}
+      ${c.req.query('publishing') === '1' ? '<div class="card" style="border-left:4px solid #1a8a4e;color:#1a8a4e;margin-bottom:12px">已启动“AI整理并进入待审核”。系统会重新抓取候选详情页并生成草稿；通过质量门槛后仍需人工审核。结果请到“采集日志”和“已采集文章”查看。</div>' : ''}
+      ${c.req.query('error') ? '<div class="card" style="border-left:4px solid #e5484d;color:#c92a2a;margin-bottom:12px">' + escapeHtml(c.req.query('error') || '') + '</div>' : ''}
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+        <form method="post" action="/admin/news-sources/${id}/analyze" style="display:inline">
+          <button class="btn secondary" type="submit">🤖 AI分析来源地址 / 列表页</button>
+        </form>
+      </div>
+      <form class="admin-form" method="post" action="/admin/news-sources/${id}/edit">
+        <label>来源名称</label>
+        <input name="name" value="${escapeHtml(String(source.name || ''))}" maxlength="120" required />
+        <label>来源地址 / 新闻列表页</label>
+        <input name="feed_url" type="url" value="${escapeHtml(String(source.feed_url || ''))}" required />
+        <label>可信度</label>
+        <select name="credibility">
+          ${['高','中','低'].map((v) => `<option value="${v}" ${String(source.credibility || '中') === v ? 'selected' : ''}>${v}</option>`).join('')}
+        </select>
+        <label><input type="checkbox" name="is_active" ${Number(source.is_active) ? 'checked' : ''} /> 启用这个采集源</label>
+        <button class="btn" type="submit">保存来源设置</button>
+      </form>
+      ${analysisHtml}
+    `,
+  }))
+})
+
+adminRoutes.post('/news-sources/:id/edit', async (c) => {
+  const id = Number(c.req.param('id'))
+  if (!id) return c.notFound()
+  const current = await c.env.DB.prepare('SELECT * FROM news_sources WHERE id=? LIMIT 1').bind(id).first() as any
+  if (!current) return c.notFound()
+
+  const b = await c.req.parseBody()
+  const name = String(b.name || '').trim().slice(0, 120)
+  const feedUrl = String(b.feed_url || '').trim()
+  const credibility = String(b.credibility || '中').trim()
+  const isActive = b.is_active ? 1 : 0
+  if (!name) return c.text('请填写来源名称', 400)
+  let parsedUrl: URL
+  try {
+    parsedUrl = new URL(feedUrl)
+  } catch {
+    return c.text('来源地址必须是完整的 http:// 或 https:// 地址', 400)
+  }
+  if (!/^https?:$/.test(parsedUrl.protocol)) return c.text('来源地址必须使用 http:// 或 https://', 400)
+  if (!['高', '中', '低'].includes(credibility)) return c.text('可信度只能填写 高 / 中 / 低', 400)
+
+  const duplicate = await c.env.DB.prepare('SELECT id FROM news_sources WHERE feed_url=? AND id<>? LIMIT 1')
+    .bind(parsedUrl.href, id).first()
+  if (duplicate) return c.text('这个来源地址已经被其他采集源使用，请换一个地址', 409)
+
+  try {
+    await c.env.DB.prepare(
+      "UPDATE news_sources SET name=?, feed_url=?, credibility=?, is_active=?, last_fetched_at=CASE WHEN feed_url=? THEN last_fetched_at ELSE NULL END WHERE id=?"
+    ).bind(name, parsedUrl.href, credibility, isActive, parsedUrl.href, id).run()
+  } catch (e) {
+    console.error('update news source failed', e)
+    return c.text(errorMessage(e, '修改新闻来源失败'), 500)
+  }
+  return c.redirect('/admin/news-sources')
+})
+
+adminRoutes.post('/news-sources/new', async (c) => {
+  const b = await c.req.parseBody()
+  const name = String(b.name || '').trim().slice(0, 120)
+  const feedUrl = String(b.feed_url || '').trim()
+  const credibility = String(b.credibility || '中').trim()
+  if (!name) return c.text('请填写来源名称', 400)
+  let parsedUrl: URL
+  try {
+    parsedUrl = new URL(feedUrl)
+  } catch {
+    return c.text('来源地址必须是完整的 http:// 或 https:// 地址', 400)
+  }
+  if (!/^https?:$/.test(parsedUrl.protocol)) {
+    return c.text('来源地址必须使用 http:// 或 https://', 400)
+  }
+  if (!['高', '中', '低'].includes(credibility)) {
+    return c.text('可信度只能填写 高 / 中 / 低', 400)
+  }
+  const exists = await c.env.DB.prepare('SELECT id FROM news_sources WHERE feed_url=? LIMIT 1').bind(parsedUrl.href).first()
+  if (exists) return c.text('这个来源地址已经添加过，请直接使用现有来源或换一个列表页地址', 409)
+  try {
+    await c.env.DB.prepare('INSERT INTO news_sources (name, feed_url, credibility) VALUES (?, ?, ?)')
+      .bind(name, parsedUrl.href, credibility).run()
+  } catch (e) {
+    console.error('create news source failed', e)
+    return c.text(errorMessage(e, '添加新闻来源失败'), 500)
+  }
+  return c.redirect('/admin/news-sources')
+})
+
+adminRoutes.post('/news-sources/:id/delete', async (c) => {
+  await c.env.DB.prepare('DELETE FROM news_sources WHERE id=?').bind(c.req.param('id')).run()
+  return c.redirect('/admin/news-sources')
+})
+
+// ---- 客户留言 ----
+adminRoutes.get('/messages', async (c) => {
+  const statusFilter = c.req.query('status')
+  const where = statusFilter ? 'WHERE m.status = ?' : ''
+  const stmt = c.env.DB.prepare(
+    `SELECT m.*,
+            (SELECT COUNT(*) FROM message_replies r WHERE r.message_id=m.id) AS reply_count
+       FROM messages m ${where}
+      ORDER BY m.created_at DESC
+      LIMIT 200`,
+  )
+  const rows = (statusFilter ? await stmt.bind(statusFilter).all() : await stmt.all()).results as any[]
+  
+  if (rows.length) {
+    const ids = rows.map((row) => Number(row.id)).filter((id) => Number.isFinite(id) && id > 0)
+    if (ids.length) {
+      const byMessage = new Map<number, any[]>()
+      for (let i = 0; i < ids.length; i += 90) {
+        const part = ids.slice(i, i + 90)
+        const marks = part.map(() => '?').join(',')
+        const replyRows = (await c.env.DB.prepare(
+          `SELECT id, message_id, content, channel, operator, created_at
+             FROM message_replies
+            WHERE message_id IN (${marks})
+            ORDER BY created_at ASC, id ASC`,
+        ).bind(...part).all()).results as any[]
+        for (const reply of replyRows as any[]) {
+          const key = Number(reply.message_id)
+          const list = byMessage.get(key) || []
+          if (list.length < 30) list.push(reply)
+          byMessage.set(key, list)
+        }
+      }
+      for (const row of rows) row.replies = byMessage.get(Number(row.id)) || []
+    }
+  }
+  const message = c.req.query('error')
+    || (c.req.query('replied') === '1' ? '回复已保存，并已将该留言标记为“已回复”。' : '')
+  return c.html(renderMessagesList(rows, statusFilter, message))
+})
+
+adminRoutes.post('/messages/:id/read', async (c) => {
+  await c.env.DB.prepare("UPDATE messages SET status='read' WHERE id=? AND status='new'").bind(c.req.param('id')).run()
+  return c.redirect('/admin/messages')
+})
+
+adminRoutes.post('/messages/:id/reply', async (c) => {
+  const id = Number(c.req.param('id'))
+  if (!id) return c.notFound()
+
+  const message = await c.env.DB.prepare('SELECT id, email, name FROM messages WHERE id=? LIMIT 1').bind(id).first()
+  if (!message) return c.notFound()
+
+  const body = await c.req.parseBody()
+  const content = String(body.content || '').trim().slice(0, 3000)
+  const allowedChannels = new Set(['邮箱', '电话', '微信', 'QQ', '其他', '内部记录'])
+  const requestedChannel = String(body.channel || '')
+  const channel = allowedChannels.has(requestedChannel) ? requestedChannel : '内部记录'
+  if (!content) {
+    return c.redirect('/admin/messages?error=' + encodeURIComponent('回复内容不能为空'))
+  }
+
+  const admin = await getCurrentAdmin(c)
+  const operator = String(admin?.email || '管理员').slice(0, 200)
+
+  try {
+    if (channel === '邮箱') {
+      const email = String((message as any)?.email || '').trim().toLowerCase()
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        return c.redirect('/admin/messages?error=' + encodeURIComponent('该留言没有有效客户邮箱，无法发送邮箱回复'))
+      }
+      const settings = await readSettingsMap(c.env)
+      const subject = String(body.subject || '').trim().slice(0, 200) || ((settings.site_name || '网站') + ' 回复您的留言')
+      const sent = await sendCustomerReplyEmail(c.env, { to: email, subject, content })
+      if (!sent.ok) {
+        return c.redirect('/admin/messages?error=' + encodeURIComponent('邮箱发送失败：' + String(sent.error || '未知错误')))
+      }
+    }
+
+    await c.env.DB.batch([
+      c.env.DB.prepare(
+        'INSERT INTO message_replies (message_id, content, channel, operator) VALUES (?, ?, ?, ?)'
+      ).bind(id, content, channel, operator),
+      c.env.DB.prepare("UPDATE messages SET status='replied' WHERE id=?").bind(id),
+    ])
+  } catch (e) {
+    console.error('save customer message reply failed', e)
+    return c.redirect('/admin/messages?error=' + encodeURIComponent('回复保存失败，请确认已完成数据库迁移：' + errorMessage(e, '未知错误')))
+  }
+
+  return c.redirect('/admin/messages?replied=1')
+})
+
+adminRoutes.post('/messages/:id/delete', async (c) => {
+  const id = Number(c.req.param('id'))
+  if (!id) return c.notFound()
+  try {
+    // 显式删除回复，确保即使 D1 外键级联未启用也不会留下孤立回复。
+    await c.env.DB.prepare('DELETE FROM message_replies WHERE message_id=?').bind(id).run()
+    await c.env.DB.prepare('DELETE FROM messages WHERE id=?').bind(id).run()
+  } catch (e) {
+    console.error('delete customer message failed', e)
+    return c.text('删除留言失败', 500)
+  }
+  return c.redirect('/admin/messages')
+})
+
+// ---- 全站自动 SEO：补齐 SEO 字段并统一页面主题词数量 ----
+adminRoutes.post('/seo/auto-fill', async (c) => {
+  const siteName = c.env.SITE_NAME || '网站内容平台'
+  try {
+    const [cityResult, serviceResult, articleResult] = await Promise.all([
+      c.env.DB.prepare(
+        `UPDATE cities SET
+          seo_title = CASE
+            WHEN TRIM(COALESCE(seo_title,'')) = '' OR length(seo_title) > 120 THEN substr(name || '服务_解决方案_流程指南 - ' || ?, 1, 120)
+            ELSE seo_title
+          END,
+          seo_description = CASE
+            WHEN TRIM(COALESCE(seo_description,'')) = '' OR length(seo_description) > 180 THEN substr(name || '围绕当前站点行业主题提供服务范围、办理流程、准备资料和风险提醒。', 1, 180)
+            ELSE seo_description
+          END
+         WHERE is_active=1`
+      ).bind(siteName).run(),
+      c.env.DB.prepare(
+        `UPDATE services SET
+          seo_title = CASE
+            WHEN TRIM(COALESCE(seo_title,'')) = '' OR length(seo_title) > 120 THEN substr(name || ' - ' || ?, 1, 120)
+            ELSE seo_title
+          END,
+          seo_description = CASE
+            WHEN TRIM(COALESCE(seo_description,'')) = '' OR length(seo_description) > 180 THEN substr(name || '专业服务，提供合规、清晰、可执行的办理支持。' || COALESCE(NULLIF(summary,''),'围绕企业实际业务场景提供流程、材料说明和风险提醒。'), 1, 180)
+            ELSE seo_description
+          END
+         WHERE is_active=1`
+      ).bind(siteName).run(),
+      c.env.DB.prepare(
+        `UPDATE articles SET
+          seo_title = CASE
+            WHEN TRIM(COALESCE(seo_title,'')) = '' OR length(seo_title) > 120 THEN substr(title || ' - ' || ?,1,120)
+            ELSE seo_title
+          END,
+          seo_description = CASE
+            WHEN TRIM(COALESCE(seo_description,'')) = '' OR length(COALESCE(seo_description,'')) > 180 THEN substr(COALESCE(NULLIF(summary,''), title || '相关行业政策与实务解读。'),1,180)
+            ELSE seo_description
+          END
+         WHERE status='published'`
+      ).bind(siteName).run(),
+    ])
+    const synced = await syncPageSeoKeywords(c.env)
+    c.executionCtx.waitUntil(purgeCacheAll(c.executionCtx))
+    const c1 = Number((cityResult as any)?.meta?.changes || 0)
+    const c2 = Number((serviceResult as any)?.meta?.changes || 0)
+    const c3 = Number((articleResult as any)?.meta?.changes || 0)
+    return c.redirect('/admin/keywords?message=' + encodeURIComponent('全部页面 SEO 已规范：城市 ' + c1 + '、服务 ' + c2 + '、文章 ' + c3 + ' 条元数据修复；城市/服务/文章主题词已统一为 3-5 个并与正文匹配。'))
+  } catch (e) {
+    console.error('seo auto-fill failed', e)
+    return c.redirect('/admin/keywords?error=' + encodeURIComponent('全部页面 SEO 规范失败：' + errorMessage(e, '未知错误')))
+  }
+})
+
+// ---- SEO / 搜索引擎推送 ----
+adminRoutes.get('/seo', async (c) => {
+  const engine = String(c.req.query('engine') || '').trim()
+  const result = String(c.req.query('result') || '').trim()
+  const q = String(c.req.query('q') || '').trim()
+  const where: string[] = []
+  const params: string[] = []
+  const channelSettings = (await c.env.DB.prepare(
+    "SELECT key, value FROM settings WHERE key IN ('indexnow_key','baidu_token','so_token','sogou_token')"
+  ).all()).results as any[]
+  const settingMap = new Map(channelSettings.map((row) => [String(row.key), String(row.value || '')]))
+  const channels = {
+    indexnow: !!(await getIndexNowKey(c.env)),
+    bing: !!(await getIndexNowKey(c.env)),
+    baidu: !!settingMap.get('baidu_token'),
+    '360': !!settingMap.get('so_token'),
+    sogou: !!settingMap.get('sogou_token'),
+    google: false,
+  }
+  if (engine) { where.push('engine = ?'); params.push(engine) }
+  if (q) { const like = '%' + escapeLike(q) + '%'; where.push(`(url LIKE ? ESCAPE char(92) OR response LIKE ? ESCAPE char(92) OR CAST(status_code AS TEXT) LIKE ? ESCAPE char(92))`); params.push(like, like, like) }
+  if (result === 'success') where.push('status_code >= 200 AND status_code < 300')
+  else if (result === 'failure') where.push('(status_code IS NULL OR status_code < 200 OR status_code >= 300)')
+  const clause = where.length ? 'WHERE ' + where.join(' AND ') : ''
+  const countRow = await c.env.DB.prepare(`SELECT
+    SUM(CASE WHEN status_code >= 200 AND status_code < 300 THEN 1 ELSE 0 END) AS success_count,
+    SUM(CASE WHEN status_code IS NULL OR status_code < 200 OR status_code >= 300 THEN 1 ELSE 0 END) AS failure_count
+    FROM submit_logs ${clause}`).bind(...params).first() as any
+  const logs = (await c.env.DB.prepare(`SELECT * FROM submit_logs ${clause} ORDER BY created_at DESC LIMIT 100`).bind(...params).all()).results
+  return c.html(renderSeoPage({
+    siteUrl: resolveSiteUrl(c), recentLogs: logs as any,
+    successCount: Number(countRow?.success_count || 0), failureCount: Number(countRow?.failure_count || 0),
+    engine, result, q, channels,
+    notifyStarted: c.req.query('notify') === '1',
+    notifyCount: Number(c.req.query('notify_count') || 0),
+  }))
+})
+
+adminRoutes.post('/seo/logs/:id/retry', async (c) => {
+  const id = Number(c.req.param('id'))
+  if (!id) return c.notFound()
+  const log = await c.env.DB.prepare('SELECT id, url, status_code, response FROM submit_logs WHERE id=? LIMIT 1').bind(id).first() as any
+  if (!log) return c.notFound()
+
+  const status = Number(log.status_code || 0)
+  const skipped = status === 0 && /(基础模板|不调用|不重复调用|请在|手动)/.test(String(log.response || ''))
+  if (skipped) return c.redirect('/admin/seo?result=failure&q=' + encodeURIComponent(String(log.url || '')) + '&retry=skipped')
+  const url = String(log.url || '').trim()
+  if (!/^https?:\/\//i.test(url)) return c.redirect('/admin/seo?result=failure&retry=invalid')
+  const siteUrl = resolveSiteUrl(c)
+  c.executionCtx.waitUntil(submitAllEngines(c.env, [url], siteUrl).catch((e) => console.error('SEO log retry failed', { id, url, error: String(e) })))
+  return c.redirect('/admin/seo?notify=1&notify_count=1&retry=1&q=' + encodeURIComponent(url))
+})
+
+adminRoutes.post('/seo/logs/:id/delete', async (c) => {
+  const id = Number(c.req.param('id'))
+  if (!id) return c.notFound()
+  await c.env.DB.prepare('DELETE FROM submit_logs WHERE id=?').bind(id).run()
+  return c.redirect('/admin/seo')
+})
+
+adminRoutes.post('/seo/submit', async (c) => {
+  const siteUrl = resolveSiteUrl(c)
+  const urls = await getAllPublishedUrls(c.env, siteUrl)
+  const unique = Array.from(new Set(urls))
+  c.executionCtx.waitUntil(
+    submitAllEngines(c.env, unique, siteUrl).catch((e) => console.error('manual SEO submission failed', e))
+  )
+  return c.redirect('/admin/seo?notify=1&notify_count=' + unique.length)
+})
+
+// ---- R2 媒体库：直接读取 R2，包含历史上传的页面图片、二维码和媒体文件 ----
+const MEDIA_MIME_BY_EXT: Record<string, string> = {
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  png: 'image/png',
+  webp: 'image/webp',
+  gif: 'image/gif',
+  svg: 'image/svg+xml',
+  pdf: 'application/pdf',
+}
+
+function mediaPublicUrl(objectKey: string): string {
+  return '/media/' + objectKey.slice('media/'.length)
+}
+
+function mediaSafeKey(raw: unknown): string {
+  const key = String(raw || '').trim()
+  if (!key || !key.startsWith('media/') || key.includes('..')) return ''
+  return key
+}
+
+async function detachDeletedMediaReferences(c: any, objectKey: string): Promise<void> {
+  const publicUrl = mediaPublicUrl(objectKey)
+  const settings = await readSettingsMap(c.env)
+  let settingsChanged = false
+
+  if (String(settings.contact_qr_url || '').trim() === publicUrl) {
+    await c.env.DB.prepare("DELETE FROM settings WHERE key='contact_qr_url'").run()
+    settingsChanged = true
+  }
+
+  const store = getImageStore(settings)
+  let imageChanged = false
+  if (store.home?.key === objectKey || store.home?.url === publicUrl) {
+    delete store.home
+    imageChanged = true
+  }
+  for (const group of ['cities', 'services'] as const) {
+    for (const [slug, entry] of Object.entries(store[group])) {
+      if (entry?.key === objectKey || entry?.url === publicUrl) {
+        delete store[group][slug]
+        imageChanged = true
+      }
+    }
+  }
+  if (imageChanged) {
+    await saveSetting(c.env, 'image_settings_json', saveImageStore(store))
+    settingsChanged = true
+  }
+
+  if (settingsChanged) {
+    await purgeCacheAll(c.executionCtx)
+  }
+}
+
+async function permanentlyDeleteMediaObject(c: any, objectKey: string): Promise<boolean> {
+  const key = mediaSafeKey(objectKey)
+  if (!key) return false
+  try {
+    const existing = await c.env.R2_MEDIA.head(key)
+    if (!existing) {
+      await c.env.DB.prepare('DELETE FROM media_assets WHERE object_key=?').bind(key).run()
+      return false
+    }
+    await c.env.R2_MEDIA.delete(key)
+    await c.env.DB.prepare('DELETE FROM media_assets WHERE object_key=?').bind(key).run()
+    await detachDeletedMediaReferences(c, key)
+    await purgeCacheTags(c.executionCtx, [mediaCacheTag(key)])
+    return true
+  } catch (e) {
+    console.error('permanent media delete failed', key, e)
+    return false
+  }
+}
+
+adminRoutes.get('/media', async (c) => {
+  const [listed, trackedResult] = await Promise.all([
+    c.env.R2_MEDIA.list({ prefix: 'media/', limit: 1000 }),
+    c.env.DB.prepare('SELECT object_key, original_name, content_type FROM media_assets').all(),
+  ])
+  const tracked = new Map<string, any>()
+  for (const row of trackedResult.results as any[]) tracked.set(String(row.object_key), row)
+
+  const rows = (listed.objects || []).map((object: any) => {
+    const key = String(object.key || '')
+    const meta = tracked.get(key)
+    const name = String(meta?.original_name || key.split('/').pop() || key)
+    const ext = (key.split('.').pop() || '').toLowerCase()
+    return {
+      id: meta?.id ? Number(meta.id) : '',
+      object_key: key,
+      original_name: name,
+      content_type: String(meta?.content_type || MEDIA_MIME_BY_EXT[ext] || 'application/octet-stream'),
+      size: Number(object.size || 0),
+      uploaded_at: object.uploaded ? new Date(object.uploaded).toISOString() : '',
+      r2_only: !meta,
+    }
+  })
+  rows.sort((a: any, b: any) => String(b.uploaded_at).localeCompare(String(a.uploaded_at)))
+  const total = rows.length
+  const totalLabel = listed.truncated ? String(total) + '+' : String(total)
+  return c.html(renderMediaPage(rows.slice(0, 1000), totalLabel as any, c.req.query('error') || ''))
+})
+
+adminRoutes.post('/media/upload', async (c) => {
+  const maxBytes = 10 * 1024 * 1024
+  const contentLength = Number(c.req.header('content-length') || 0)
+  if (contentLength && contentLength > maxBytes + 256 * 1024) {
+    return c.redirect('/admin/media?error=' + encodeURIComponent('单文件最大 10MB'))
+  }
+  const body = await c.req.parseBody({ all: true })
+  const fileValue = body.file
+  const file = fileValue instanceof File ? fileValue : null
+  if (!file || !file.name) return c.redirect('/admin/media?error=' + encodeURIComponent('请选择文件'))
+  if (file.size > maxBytes) return c.redirect('/admin/media?error=' + encodeURIComponent('单文件最大 10MB'))
+  const allowed = /^(image\/(jpeg|png|webp|gif|svg\+xml)|application\/pdf)$/.test(file.type)
+  if (!allowed) return c.redirect('/admin/media?error=' + encodeURIComponent('仅支持 JPG、PNG、WEBP、GIF、SVG、PDF'))
+
+  const ext = (file.name.split('.').pop() || 'bin').toLowerCase().replace(/[^a-z0-9]+/g, '') || 'bin'
+  const objectKey = 'media/' + new Date().toISOString().slice(0, 10) + '/' + crypto.randomUUID() + '.' + ext
+  const object = await c.env.R2_MEDIA.put(objectKey, file.stream(), {
+    httpMetadata: { contentType: file.type || 'application/octet-stream', contentDisposition: 'inline' },
+    customMetadata: { originalName: file.name },
+  })
+  await c.env.DB.prepare(
+    'INSERT INTO media_assets (object_key, original_name, content_type, size, etag) VALUES (?, ?, ?, ?, ?)'
+  ).bind(objectKey, file.name, file.type || 'application/octet-stream', file.size, object?.etag || null).run()
+  return c.redirect('/admin/media')
+})
+
+adminRoutes.post('/media/:id/delete', async (c) => {
+  const id = Number(c.req.param('id'))
+  if (!id) return c.notFound()
+  const row = await c.env.DB.prepare('SELECT object_key FROM media_assets WHERE id=?').bind(id).first() as any
+  if (row) await permanentlyDeleteMediaObject(c, String(row.object_key))
+  c.header('Cache-Control', 'no-store')
+  await purgeCacheAll(c.executionCtx)
+  return c.redirect('/admin/media')
+})
+
+adminRoutes.post('/media/delete-one', async (c) => {
+  const body = await c.req.parseBody()
+  const key = mediaSafeKey(body.object_key)
+  if (!key) return c.redirect('/admin/media?error=' + encodeURIComponent('媒体文件地址无效'))
+  const ok = await permanentlyDeleteMediaObject(c, key)
+  if (!ok) return c.redirect('/admin/media?error=' + encodeURIComponent('文件不存在或删除失败，请重新加载后重试'))
+  await purgeCacheAll(c.executionCtx)
+  c.header('Cache-Control', 'no-store')
+  return c.redirect('/admin/media')
+})
+
+adminRoutes.post('/media/delete-selected', async (c) => {
+  const body = await c.req.parseBody({ all: true })
+  const raw = body.keys
+  const keys = Array.from(new Set((Array.isArray(raw) ? raw : raw ? [raw] : [])
+    .map((v) => mediaSafeKey(v))
+    .filter(Boolean)
+    .slice(0, 25)))
+  if (!keys.length) return c.redirect('/admin/media?error=' + encodeURIComponent('请先选择要删除的文件'))
+
+  let deleted = 0
+  for (const key of keys) {
+    if (await permanentlyDeleteMediaObject(c, key)) deleted++
+  }
+  await purgeCacheAll(c.executionCtx)
+  c.header('Cache-Control', 'no-store')
+  return c.redirect('/admin/media' + (deleted ? '' : '?error=' + encodeURIComponent('没有文件被删除，请重新加载媒体库后重试')))
+})
+
+// ---- 生产库资源清理：每次 HTTP 调用只处理一个小批次，浏览器连续调用，降低 1101/1102 风险 ----
+adminRoutes.post('/production-cleanup', async (c) => {
+  const body = await c.req.parseBody()
+  const scope = String(body.scope || '').trim()
+  const phase = String(body.phase || 'd1').trim()
+  const cursor = String(body.cursor || '').trim()
+  const allowed = new Set(['articles', 'news', 'cities', 'services', 'keywords', 'r2', 'kv', 'all', 'cache'])
+  if (!allowed.has(scope)) return c.json({ ok: false, error: '无效清理范围' }, 400)
+
+  try {
+    const result: Record<string, any> = { ok: true, scope, phase, deleted: 0, complete: true, nextPhase: 'done', nextCursor: '' }
+
+    if (scope === 'cache') {
+      result.cachePurged = await purgeCacheEverything(c.executionCtx)
+      result.complete = true
+    } else if (scope === 'all' && (phase === 'd1' || phase.startsWith('d1:'))) {
+      const table = phase === 'd1' ? 'social_posts' : phase.slice(3)
+      if (table === '__production_settings__') {
+        const settingsBatch = await deleteProductionSettingsBatch(c.env, 'ai_page', 25)
+        result.deleted = settingsBatch.deleted
+        result.complete = settingsBatch.complete
+        result.nextPhase = settingsBatch.complete ? 'generated-meta' : 'd1:__production_settings__'
+      } else if (table === '__generated_meta__') {
+        const settingsBatch = await deleteProductionSettingsBatch(c.env, 'generated_meta', 25)
+        result.deleted = settingsBatch.deleted
+        result.complete = settingsBatch.complete
+        result.nextPhase = settingsBatch.complete ? 'r2' : 'generated-meta'
+      } else {
+        const batch = await deleteProductionD1Batch(c.env, table, 25)
+        result.deleted = batch.deleted
+        if (batch.deleted > 0) {
+          result.complete = false
+          result.nextPhase = 'd1:' + batch.nextTable
+        } else if (batch.nextTable === '__production_settings__') {
+          result.complete = false
+          result.nextPhase = 'd1:__production_settings__'
+        } else {
+          result.complete = false
+          result.nextPhase = 'd1:' + batch.nextTable
+        }
+      }
+    } else if (scope === 'articles') {
+      const rows = (await c.env.DB.prepare('SELECT id FROM articles ORDER BY id LIMIT 10').all()).results as any[]
+      if (rows.length) {
+        const ids = rows.map((row) => Number(row.id)).filter((id) => Number.isFinite(id))
+        const placeholders = ids.map(() => '?').join(',')
+        await c.env.DB.batch([
+          c.env.DB.prepare(`DELETE FROM social_posts WHERE article_id IN (${placeholders})`).bind(...ids),
+          c.env.DB.prepare(`DELETE FROM review_logs WHERE article_id IN (${placeholders})`).bind(...ids),
+          c.env.DB.prepare(`DELETE FROM articles WHERE id IN (${placeholders})`).bind(...ids),
+        ])
+        await removePageContact(c.env, ids.map((id) => 'article:' + id))
+        result.deleted = rows.length
+        result.complete = rows.length < 10
+      }
+    } else if (scope === 'news') {
+      if (phase === 'd1') {
+        const rows = (await c.env.DB.prepare("SELECT id FROM articles WHERE ai_generated=1 ORDER BY id LIMIT 10").all()).results as any[]
+        if (rows.length) {
+          const ids = rows.map((row) => Number(row.id)).filter((id) => Number.isFinite(id))
+          const placeholders = ids.map(() => '?').join(',')
+          await c.env.DB.batch([
+            c.env.DB.prepare(`DELETE FROM social_posts WHERE article_id IN (${placeholders})`).bind(...ids),
+            c.env.DB.prepare(`DELETE FROM review_logs WHERE article_id IN (${placeholders})`).bind(...ids),
+            c.env.DB.prepare(`DELETE FROM articles WHERE id IN (${placeholders})`).bind(...ids),
+          ])
+          await removePageContact(c.env, ids.map((id) => 'article:' + id))
+          result.deleted = rows.length
+          result.complete = false
+          result.nextPhase = 'd1'
+        } else {
+          result.complete = false
+          result.nextPhase = 'meta'
+        }
+      } else if (phase === 'meta') {
+        await c.env.DB.batch([
+          c.env.DB.prepare('DELETE FROM collection_logs'),
+          c.env.DB.prepare('DELETE FROM news_sources'),
+        ])
+        result.complete = true
+      }
+    } else if (scope === 'cities') {
+      if (phase === 'd1') {
+        const rows = (await c.env.DB.prepare('SELECT id, slug FROM cities ORDER BY id LIMIT 10').all()).results as any[]
+        if (rows.length) {
+          const ids = rows.map((row) => Number(row.id)).filter((id) => Number.isFinite(id))
+          const slugs = rows.map((row) => String(row.slug || '').trim()).filter(Boolean)
+          const placeholders = ids.map(() => '?').join(',')
+          await c.env.DB.batch([
+            c.env.DB.prepare(`DELETE FROM social_posts WHERE article_id IN (SELECT id FROM articles WHERE city_id IN (${placeholders}) AND ai_generated=1)`).bind(...ids),
+            c.env.DB.prepare(`DELETE FROM review_logs WHERE article_id IN (SELECT id FROM articles WHERE city_id IN (${placeholders}) AND ai_generated=1)`).bind(...ids),
+            c.env.DB.prepare(`DELETE FROM articles WHERE city_id IN (${placeholders}) AND ai_generated=1`).bind(...ids),
+            c.env.DB.prepare(`UPDATE articles SET city_id=NULL WHERE city_id IN (${placeholders})`).bind(...ids),
+            c.env.DB.prepare(`DELETE FROM keywords WHERE city_id IN (${placeholders})`).bind(...ids),
+            c.env.DB.prepare(`DELETE FROM cities WHERE id IN (${placeholders})`).bind(...ids),
+            c.env.DB.prepare(`DELETE FROM settings WHERE key IN (${slugs.map(() => '?').join(',')})`).bind(...slugs.map((slug) => aiContentSettingKey('cities', slug))),
+          ])
+          await removePageContact(c.env, slugs.map((slug) => 'city:' + slug))
+          result.deleted = rows.length
+          result.complete = false
+          result.nextPhase = 'd1'
+        } else {
+          await removeImageStoreGroup(c.env, 'cities')
+          result.complete = false
+          result.nextPhase = 'r2'
+        }
+      } else if (phase === 'r2') {
+        const batch = await deleteR2PrefixBatch(c.env, 'media/pages/city/', cursor, 25)
+        result.deleted = batch.deleted
+        result.complete = batch.complete
+        result.nextPhase = batch.complete ? 'done' : 'r2'
+        result.nextCursor = batch.nextCursor
+      }
+    } else if (scope === 'services') {
+      if (phase === 'd1') {
+        const rows = (await c.env.DB.prepare('SELECT id, slug FROM services ORDER BY id LIMIT 10').all()).results as any[]
+        if (rows.length) {
+          const ids = rows.map((row) => Number(row.id)).filter((id) => Number.isFinite(id))
+          const slugs = rows.map((row) => String(row.slug || '').trim()).filter(Boolean)
+          const placeholders = ids.map(() => '?').join(',')
+          await c.env.DB.batch([
+            c.env.DB.prepare(`DELETE FROM keywords WHERE service_id IN (${placeholders})`).bind(...ids),
+            c.env.DB.prepare(`DELETE FROM services WHERE id IN (${placeholders})`).bind(...ids),
+            c.env.DB.prepare(`DELETE FROM settings WHERE key IN (${slugs.map(() => '?').join(',')})`).bind(...slugs.map((slug) => aiContentSettingKey('services', slug))),
+          ])
+          await removePageContact(c.env, slugs.map((slug) => 'service:' + slug))
+          result.deleted = rows.length
+          result.complete = false
+          result.nextPhase = 'd1'
+        } else {
+          await removeImageStoreGroup(c.env, 'services')
+          await c.env.DB.prepare("DELETE FROM settings WHERE key='service_external_links'").run()
+          result.complete = false
+          result.nextPhase = 'r2'
+        }
+      } else if (phase === 'r2') {
+        const batch = await deleteR2PrefixBatch(c.env, 'media/pages/service/', cursor, 25)
+        result.deleted = batch.deleted
+        result.complete = batch.complete
+        result.nextPhase = batch.complete ? 'done' : 'r2'
+        result.nextCursor = batch.nextCursor
+      }
+    } else if (scope === 'keywords') {
+      if (phase === 'd1') {
+        const resultBatch = await deleteProductionD1Batch(c.env, 'keywords', 25)
+        result.deleted = resultBatch.deleted
+        result.complete = resultBatch.deleted === 0
+        result.nextPhase = result.complete ? 'landing-meta' : 'd1:keywords'
+      } else if (phase === 'landing-meta') {
+        const settingsBatch = await deleteProductionSettingsBatch(c.env, 'ai_page', 25)
+        result.deleted = settingsBatch.deleted
+        result.complete = settingsBatch.complete
+        result.nextPhase = settingsBatch.complete ? 'done' : 'landing-meta'
+      }
+    } else if (scope === 'r2') {
+      if (phase === 'd1') {
+        await c.env.DB.batch([
+          c.env.DB.prepare('DELETE FROM media_assets'),
+          c.env.DB.prepare("DELETE FROM settings WHERE key IN ('image_settings_json','contact_qr_url')"),
+        ])
+        result.complete = false
+        result.nextPhase = 'r2'
+      } else {
+        const batch = await deleteR2PrefixBatch(c.env, 'media/', cursor, 25)
+        result.deleted = batch.deleted
+        result.complete = batch.complete
+        result.nextPhase = batch.complete ? 'done' : 'r2'
+        result.nextCursor = batch.nextCursor
+      }
+    } else if (scope === 'kv') {
+      if (phase === 'd1') result.deleted = await clearKnownKvProbes(c.env)
+      const batch = await clearTransientKvBatch(c.env, phase === 'kv' ? cursor : '', 25)
+      result.deleted += batch.deleted
+      result.complete = batch.complete
+      result.nextPhase = batch.complete ? 'done' : 'kv'
+      result.nextCursor = batch.nextCursor
+    } else {
+      return c.json({ ok: false, error: '无效清理阶段' }, 400)
+    }
+
+    c.header('Cache-Control', 'no-store')
+    c.header('Cloudflare-CDN-Cache-Control', 'no-store')
+    return c.json(result)
+  } catch (e) {
+    console.error('production cleanup failed', { scope, phase, cursor, error: e })
+    c.header('Cache-Control', 'no-store')
+    return c.json({ ok: false, error: errorMessage(e, '生产资源清理失败') }, 500)
+  }
+})
+
+
+// ---- 系统自检：不用命令行/日志，直接在网页上确认各项绑定和配置是否正常 ----
+adminRoutes.get('/system', async (c) => {
+  const env = c.env
+  const checks: { label: string; ok: boolean; detail: string; level?: 'warning' | 'error' }[] = []
+  const probe = c.req.query('probe') === '1'
+
+  try {
+    await env.DB.prepare('SELECT 1').first()
+    checks.push({ label: 'D1 数据库连接', ok: true, detail: '正常' })
+  } catch (e) {
+    checks.push({ label: 'D1 数据库连接', ok: false, detail: String(e) })
+  }
+
+  if (!env.CACHE_KV) {
+    checks.push({ label: 'KV 缓存绑定', ok: false, detail: 'CACHE_KV 未绑定' })
+  } else if (!probe) {
+    checks.push({ label: 'KV 缓存绑定', ok: true, detail: '已绑定；执行完整检测才会实际读写' })
+  } else {
+    try {
+      await env.CACHE_KV.put('__healthcheck__', '1', { expirationTtl: 60 })
+      const value = await env.CACHE_KV.get('__healthcheck__')
+      checks.push({ label: 'KV 缓存读写', ok: value === '1', detail: value === '1' ? '正常' : '读写值不一致' })
+    } catch (e) {
+      checks.push({ label: 'KV 缓存读写', ok: false, detail: String(e) })
+    }
+  }
+
+  if (!env.R2_MEDIA) {
+    checks.push({ label: 'R2 媒体绑定', ok: false, detail: 'R2_MEDIA 未绑定' })
+  } else if (!probe) {
+    checks.push({ label: 'R2 媒体绑定', ok: true, detail: '已绑定；执行完整检测才会实际写入/读取/删除' })
+  } else {
+    try {
+      const probeKey = '__healthcheck__/' + crypto.randomUUID()
+      await env.R2_MEDIA.put(probeKey, 'ok', { httpMetadata: { contentType: 'text/plain' } })
+      const probeObject = await env.R2_MEDIA.head(probeKey)
+      await env.R2_MEDIA.delete(probeKey)
+      checks.push({ label: 'R2 媒体存储', ok: !!probeObject, detail: probeObject ? '绑定、写入、读取、删除均正常' : '写入后未找到对象' })
+    } catch (e) {
+      checks.push({ label: 'R2 媒体存储', ok: false, detail: String(e) })
+    }
+  }
+
+  const aiSettings = await getAiSettings(env)
+  if (!env.AI) {
+    checks.push({ label: 'Workers AI 绑定', ok: false, detail: 'AI 未绑定' })
+  } else if (!aiSettings.enabled) {
+    checks.push({ label: 'Workers AI 调用', ok: true, detail: `后台已停用 AI；当前模型：${aiSettings.model}` })
+  } else if (!probe) {
+    checks.push({ label: 'Workers AI 绑定', ok: true, detail: `已绑定；当前模型：${aiSettings.model}；执行完整检测才会实际调用模型` })
+  } else {
+    try {
+      const res: any = await runConfiguredAi(env, { messages: [{ role: 'user', content: '请回复"ok"两个字' }] }, aiSettings)
+      if (!res) throw new Error('AI 已启用但没有返回响应')
+      const responseText = res.response || res.result?.response || JSON.stringify(res)
+      checks.push({ label: 'Workers AI 调用', ok: true, detail: `模型：${aiSettings.model}；响应：${String(responseText).slice(0, 60)}` })
+    } catch (e) {
+      checks.push({ label: 'Workers AI 调用', ok: false, detail: String(e) })
+    }
+  }
+
+  if (String(env.JWT_SECRET || '').trim()) {
+    checks.push({ label: 'JWT 会话密钥', ok: true, detail: '已配置 Cloudflare Worker Secret JWT_SECRET。' })
+  } else {
+    checks.push({
+      label: 'JWT 会话密钥',
+      ok: true,
+      level: 'warning',
+      detail: '未配置 JWT_SECRET：当前兼容模式会使用 CACHE_KV 生成随机密钥。生产环境建议在 Cloudflare Worker → Variables and Secrets 中配置 JWT_SECRET。',
+    })
+  }
+
+  const siteUrl = resolveSiteUrl(c)
+  const siteUrlIsFallback = !env.SITE_URL || env.SITE_URL === 'https://your-domain.com'
+  checks.push({
+    label: '站点地址 (SITE_URL)',
+    ok: true,
+    detail: siteUrlIsFallback
+      ? `未手动配置，已按当前访问域名自动兜底为 ${siteUrl}（绑定自定义域名后建议在环境变量里手动改成正式域名）`
+      : `已配置为 ${env.SITE_URL}`,
+  })
+
+  const indexnowKey = await getIndexNowKey(env)
+  checks.push({ label: 'IndexNow Key', ok: !!indexnowKey, detail: indexnowKey ? '已配置' : '未配置，前往「系统设置」填写后即可推送百度/Bing/Yandex' })
+
+  try {
+    const adminCount = (await env.DB.prepare('SELECT COUNT(*) as n FROM admin_users').first()) as any
+    checks.push({ label: '管理员账号', ok: adminCount.n > 0, detail: adminCount.n > 0 ? `已创建 ${adminCount.n} 个账号` : '尚未创建，访问 /admin/setup 初始化' })
+
+    const newsSourceCount = (await env.DB.prepare('SELECT COUNT(*) as n FROM news_sources WHERE is_active=1').first()) as any
+    checks.push({ label: '新闻采集源', ok: newsSourceCount.n > 0, detail: newsSourceCount.n > 0 ? `已启用 ${newsSourceCount.n} 个来源` : '尚未添加，前往「新闻采集管理」添加 RSS 来源后定时任务才会工作' })
+  } catch (e) {
+    checks.push({ label: 'D1 业务表检查', ok: false, detail: String(e) })
+  }
+
+  checks.push({
+    label: 'GEO · llms.txt',
+    ok: true,
+    detail: `已启用，可访问 ${siteUrl}/llms.txt 查看 AI 爬虫看到的站点摘要`,
+  })
+  checks.push({
+    label: 'GEO · AI 爬虫白名单',
+    ok: true,
+    detail: 'robots.txt 已显式允许 GPTBot / ClaudeBot / PerplexityBot / Google-Extended / Bingbot / Baiduspider / Bytespider 等主流AI爬虫抓取',
+  })
+  checks.push({
+    label: 'GEO · 结构化数据',
+    ok: true,
+    detail: '文章页自动输出 Article 结构化数据，城市页自动输出 FAQPage 结构化数据，无需手动配置',
+  })
+
+  return c.html(renderSystemPage(checks))
+})
+
+// ---- 前台页面管理：内容、模式、外站链接统一由后台控制 ----
+async function loadPageSettingsFromDb(env: Bindings) {
+  const row = await env.DB.prepare("SELECT value FROM settings WHERE key='page_settings_json'").first() as any
+  return getPageSettings(row?.value ? { page_settings_json: String(row.value) } : {})
+}
+
+adminRoutes.get('/pages', async (c) => {
+  const pages = Object.values(await loadPageSettingsFromDb(c.env))
+  const audit = await buildPublicSeoAudit(c.env)
+  const auditByKey = new Map(audit.pages.filter((p) => p.type === 'home' || p.type === 'list').map((p) => [p.key, p.audit]))
+  const pageRows = pages.map((page: any) => ({ ...page, seoAudit: auditByKey.get(page.key) || null }))
+  return c.html(renderPageSettingsPage(pageRows))
+})
+
+adminRoutes.get('/pages/:key/edit', async (c) => {
+  const key = c.req.param('key')
+  if (!isManagedPageKey(key)) return c.notFound()
+  const pages = await loadPageSettingsFromDb(c.env)
+  const settings = await readSettingsMap(c.env)
+  const images = getImageStore(settings)
+  const pageContact = getPageContact(settings, key, getContactMethods(settings))
+  const audit = await buildPublicSeoAudit(c.env)
+  const currentAudit = audit.pages.find((p) => (p.type === 'home' || p.type === 'list') && p.key === key)?.audit || null
+  const currentPage = { ...pages[key], seoAudit: currentAudit }
+  return c.html(renderPageSettingsPage(Object.values(pages), currentPage, c.req.query('error') || '', images.home, pageContact))
+})
+
+adminRoutes.post('/pages/:key/edit', async (c) => {
+  const key = c.req.param('key')
+  if (!isManagedPageKey(key)) return c.notFound()
+  const pages = await loadPageSettingsFromDb(c.env)
+  const settings = await readSettingsMap(c.env)
+  const b = await c.req.parseBody()
+  const mode = b.mode === 'external' ? 'external' : b.mode === 'hidden' ? 'hidden' : 'internal'
+  const externalUrl = String(b.external_url || '').trim()
+  if (mode === 'external' && !isHttpUrl(externalUrl)) {
+    return c.html(renderPageSettingsPage(Object.values(pages), pages[key], '外站链接必须填写有效的 http:// 或 https:// 地址'))
+  }
+  const clean = (v: unknown, max: number) => String(v || '').trim().slice(0, max)
+  pages[key] = {
+    ...pages[key],
+    mode,
+    labelZh: clean(b.label_zh, 60) || pages[key].labelZh,
+    labelEn: clean(b.label_en, 60) || pages[key].labelEn,
+    externalUrl: mode === 'external' ? externalUrl : '',
+    titleZh: clean(b.title_zh, 200),
+    titleEn: clean(b.title_en, 200),
+    subtitleZh: clean(b.subtitle_zh, 500),
+    subtitleEn: clean(b.subtitle_en, 500),
+    contentZh: clean(b.content_zh, 12000),
+    contentEn: clean(b.content_en, 12000),
+    seoKeywordsZh: clean(b.seo_keywords_zh, 300),
+    seoKeywordsEn: clean(b.seo_keywords_en, 300),
+    showForm: b.show_form === 'on',
+  }
+  await c.env.DB.prepare("INSERT INTO settings (key, value) VALUES ('page_settings_json', ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value")
+    .bind(serializePageSettings(pages)).run()
+  c.executionCtx.waitUntil(purgeCacheAll(c.executionCtx))
+  return c.redirect('/admin/pages/' + key + '/edit')
+})
+
+
+adminRoutes.post('/pages/:key/ai-content', async (c) => {
+  const key = c.req.param('key')
+  if (!isManagedPageKey(key)) return c.notFound()
+  const pages = await loadPageSettingsFromDb(c.env)
+  const page = pages[key]
+  if (page.mode !== 'internal') {
+    return c.redirect('/admin/pages/' + key + '/edit?error=' + encodeURIComponent('外站链接或隐藏页面不需要生成本站 AI 内容'))
+  }
+
+  try {
+    const ai = await generateAiPageContent(c.env, {
+      type: 'page',
+      pageLabel: page.label,
+      pagePath: page.path,
+      title: page.titleZh,
+      summary: page.subtitleZh,
+      sourceContent: page.contentZh,
+    })
+    if (!ai) {
+      const status = await getAiRouteStatus(c.env)
+      const message = status.ok ? aiEmptyResultMessage('AI页面生成', status.settings) : status.message
+      return c.redirect('/admin/pages/' + key + '/edit?error=' + encodeURIComponent(message))
+    }
+
+    page.titleZh = ai.title
+    page.subtitleZh = ai.summary
+    page.contentZh = ai.content
+    page.seoKeywordsZh = alignSeoKeywordsToContent(
+      [page.labelZh, page.labelZh + '服务', page.labelZh + '办理', page.labelZh + '流程', ...normalizeKeywordCandidates((await readSettingsMap(c.env)).site_keywords || '', 15)],
+      ai.title, ai.summary, ai.content, 5,
+    ).join(',')
+    page.aiGenerated = true
+    await saveSetting(c.env, 'page_settings_json', serializePageSettings(pages))
+    if (key === 'home') await saveSetting(c.env, 'site_seo_ai_generated', '1')
+    c.executionCtx.waitUntil(purgeCacheAll(c.executionCtx))
+    return c.redirect('/admin/pages/' + key + '/edit?ai=1')
+  } catch (e) {
+    console.error('AI managed page generation failed', e)
+    return c.redirect('/admin/pages/' + key + '/edit?error=' + encodeURIComponent(errorMessage(e, 'AI页面生成失败')))
+  }
+})
+
+adminRoutes.post('/pages/:key/clear', async (c) => {
+  const key = c.req.param('key')
+  if (!isManagedPageKey(key)) return c.notFound()
+  const pages = await loadPageSettingsFromDb(c.env)
+  pages[key] = { ...pages[key], mode: 'internal', externalUrl: '', titleZh: '', titleEn: '', subtitleZh: '', subtitleEn: '', contentZh: '', contentEn: '', seoKeywordsZh: '', seoKeywordsEn: '', aiGenerated: false, showForm: true }
+  await saveSetting(c.env, 'page_settings_json', serializePageSettings(pages))
+  const settings = await readSettingsMap(c.env)
+  const imageStore = getImageStore(settings)
+  if (key === 'home' && imageStore.home) {
+    const old = imageStore.home
+    delete imageStore.home
+    await saveImageStoreSetting(c.env, imageStore)
+    await deletePageImage(c.env, old)
+  }
+  c.executionCtx.waitUntil(purgeCacheAll(c.executionCtx))
+  return c.redirect('/admin/pages/' + key + '/edit')
+})
+
+// ---- R2 页面图片管理 ----
+async function saveImageStoreSetting(env: Bindings, store: ReturnType<typeof getImageStore>) {
+  await saveSetting(env, 'image_settings_json', saveImageStore(store))
+}
+
+adminRoutes.post('/page-images/home', async (c) => {
+  const length = Number(c.req.header('content-length') || 0)
+  if (length && length > 5 * 1024 * 1024 + 256 * 1024) return c.redirect('/admin/pages/home/edit?error=' + encodeURIComponent('图片请求过大，单文件最大 5MB'))
+  const body = await c.req.parseBody()
+  const file = body.file instanceof File ? body.file : null
+  if (!file || !file.name) return c.redirect('/admin/pages/home/edit?error=' + encodeURIComponent('请选择图片'))
+  const settings = await readSettingsMap(c.env)
+  const store = getImageStore(settings)
+  try {
+    const next = await uploadPageImage(c.env, 'home', 'home', file)
+    const old = store.home
+    store.home = next
+    await saveImageStoreSetting(c.env, store)
+    await deletePageImage(c.env, old)
+    if (old?.key) c.executionCtx.waitUntil(purgeCacheTags(c.executionCtx, [mediaCacheTag(old.key)]))
+    c.executionCtx.waitUntil(purgeCacheAll(c.executionCtx))
+    return c.redirect('/admin/pages/home/edit')
+  } catch (e) {
+    return c.redirect('/admin/pages/home/edit?error=' + encodeURIComponent(errorMessage(e)))
+  }
+})
+
+adminRoutes.post('/page-images/home/delete', async (c) => {
+  const settings = await readSettingsMap(c.env)
+  const store = getImageStore(settings)
+  const old = removeImage(store, 'home')
+  await saveImageStoreSetting(c.env, store)
+  await deletePageImage(c.env, old)
+  if (old?.key) c.executionCtx.waitUntil(purgeCacheTags(c.executionCtx, [mediaCacheTag(old.key)]))
+  c.executionCtx.waitUntil(purgeCacheAll(c.executionCtx))
+  return c.redirect('/admin/pages/home/edit')
+})
+
+for (const group of ['city', 'service'] as const) {
+  adminRoutes.post('/page-images/' + group + '/:slug', async (c) => {
+    const slug = String(c.req.param('slug') || '').trim()
+    const editPath = group === 'city' ? '/admin/cities' : '/admin/services'
+    if (!slug) return c.redirect(editPath + '?error=' + encodeURIComponent('缺少页面标识'))
+    const length = Number(c.req.header('content-length') || 0)
+    if (length && length > 5 * 1024 * 1024 + 256 * 1024) return c.redirect(editPath + '?error=' + encodeURIComponent('图片请求过大，单文件最大 5MB'))
+    const body = await c.req.parseBody()
+    const file = body.file instanceof File ? body.file : null
+    if (!file || !file.name) return c.redirect(editPath + '?error=' + encodeURIComponent('请选择图片'))
+    const settings = await readSettingsMap(c.env)
+    const store = getImageStore(settings)
+    try {
+      const next = await uploadPageImage(c.env, group, slug, file)
+      const bucket = group === 'city' ? store.cities : store.services
+      const old = bucket[slug]
+      bucket[slug] = next
+      await saveImageStoreSetting(c.env, store)
+      await deletePageImage(c.env, old)
+      if (old?.key) c.executionCtx.waitUntil(purgeCacheTags(c.executionCtx, [mediaCacheTag(old.key)]))
+      c.executionCtx.waitUntil(purgeCacheAll(c.executionCtx))
+      return c.redirect(editPath)
+    } catch (e) {
+      return c.redirect(editPath + '?error=' + encodeURIComponent(errorMessage(e)))
+    }
+  })
+
+  adminRoutes.post('/page-images/' + group + '/:slug/delete', async (c) => {
+    const slug = c.req.param('slug')
+    const settings = await readSettingsMap(c.env)
+    const store = getImageStore(settings)
+    const old = removeImage(store, group === 'city' ? 'cities' : 'services', slug)
+    await saveImageStoreSetting(c.env, store)
+    await deletePageImage(c.env, old)
+    if (old?.key) c.executionCtx.waitUntil(purgeCacheTags(c.executionCtx, [mediaCacheTag(old.key)]))
+    c.executionCtx.waitUntil(purgeCacheAll(c.executionCtx))
+    return c.redirect(group === 'city' ? '/admin/cities' : '/admin/services')
+  })
+}
+
+// ---- AI 设置 ----
+adminRoutes.get('/ai-settings', async (c) => {
+  const settings = await getAiSettings(c.env)
+  return c.html(renderAiSettingsPage({
+    ...settings,
+    saved: c.req.query('saved') === '1',
+    test: c.req.query('test') || '',
+    testModel: c.req.query('model') || '',
+    testProvider: c.req.query('provider') || '',
+    testResponse: c.req.query('response') || '',
+    testMessage: c.req.query('message') || '',
+  }))
+})
+
+adminRoutes.post('/ai-settings', async (c) => {
+  const b = await c.req.parseBody()
+  await saveAiSettings(c.env, normalizeAiSettings({
+    enabled: b.ai_enabled === 'on',
+    aiProvider: String(b.ai_provider || ''),
+    model: String(b.ai_model || ''),
+    customModel: String(b.ai_custom_model || ''),
+    temperature: Number(b.ai_temperature),
+    maxTokens: Number(b.ai_max_tokens),
+    externalBaseUrl: String(b.ai_external_base_url || ''),
+    externalModel: String(b.ai_external_model || ''),
+    externalTimeoutMs: Number(b.ai_external_timeout_ms),
+    fallbackEnabled: b.ai_fallback_enabled === 'on',
+  }))
+  c.executionCtx.waitUntil(purgeCacheAll(c.executionCtx))
+  return c.redirect('/admin/ai-settings?saved=1')
+})
+
+adminRoutes.post('/ai-settings/test', async (c) => {
+  const settings = await getAiSettings(c.env)
+  if (!settings.enabled) {
+    return c.redirect('/admin/ai-settings?test=disabled')
+  }
+  try {
+    const result: any = await runConfiguredAi(
+      c.env,
+      { messages: [{ role: 'user', content: '只回复 ok，不要输出其他内容。' }] },
+      settings,
+    )
+    const responseText = getAiResponseText(result).trim()
+    if (!responseText) {
+      return c.redirect('/admin/ai-settings?test=empty')
+    }
+    const model = settings.provider === 'workers_ai' ? settings.model : settings.externalModel
+    return c.redirect('/admin/ai-settings?test=ok&provider=' + encodeURIComponent(settings.provider) + '&model=' + encodeURIComponent(model) + '&response=' + encodeURIComponent(responseText.slice(0, 120)))
+  } catch (e) {
+    console.error('AI diagnostic test failed', e)
+    return c.redirect('/admin/ai-settings?test=error&message=' + encodeURIComponent(errorMessage(e, 'AI 测试失败').slice(0, 600)))
+  }
+})
+
+// ---- AI 提示词管理 ----
+// 提示词和模型参数一样保存在现有 D1 settings 表，不新增 migration。
+adminRoutes.get('/ai-prompts', async (c) => {
+  const settings = await getAiPromptSettings(c.env)
+  return c.html(renderAiPromptsPage(settings, c.req.query('saved') || '', {
+    status: c.req.query('test') || '',
+    key: c.req.query('testKey') || '',
+    provider: c.req.query('provider') || '',
+    model: c.req.query('model') || '',
+    response: c.req.query('response') || '',
+    error: c.req.query('error') || '',
+  }))
+})
+
+adminRoutes.post('/ai-prompts/save', async (c) => {
+  const b = await c.req.parseBody()
+  const key = String(b.prompt_key || '')
+  const allowed = ['global', 'news', 'city', 'service', 'article', 'keyword', 'landing', 'page'] as const
+  if (!allowed.includes(key as typeof allowed[number])) return c.text('无效的提示词类型', 400)
+
+  const value = String(b.prompt || '')
+  const check = validateAiPromptVariables(key as any, value)
+  if (check.unknown.length) {
+    return c.redirect('/admin/ai-prompts?error=' + encodeURIComponent(
+      AI_PROMPT_SPECS[key as keyof typeof AI_PROMPT_SPECS].title + '存在未知变量：' + check.unknown.join('、') + '。请使用页面列出的变量。',
+    ))
+  }
+  await saveAiPromptSettings(c.env, { [key]: value } as any)
+  c.executionCtx.waitUntil(purgeCacheAll(c.executionCtx))
+  return c.redirect('/admin/ai-prompts?saved=' + encodeURIComponent(key))
+})
+
+adminRoutes.post('/ai-prompts/test', async (c) => {
+  const b = await c.req.parseBody()
+  const key = String(b.prompt_key || '')
+  const allowed = ['global', 'news', 'city', 'service', 'article', 'keyword', 'landing', 'page'] as const
+  if (!allowed.includes(key as typeof allowed[number])) return c.text('无效的提示词类型', 400)
+
+  const settings = await getAiSettings(c.env)
+  if (!settings.enabled) {
+    return c.redirect('/admin/ai-prompts?test=disabled&testKey=' + encodeURIComponent(key))
+  }
+  try {
+    const routeStatus = await getAiRouteStatus(c.env)
+    if (!routeStatus.ok) {
+      return c.redirect('/admin/ai-prompts?test=error&testKey=' + encodeURIComponent(key) + '&error=' + encodeURIComponent(routeStatus.message))
+    }
+
+    const spec = AI_PROMPT_SPECS[key as keyof typeof AI_PROMPT_SPECS]
+    const promptSettings = await getAiPromptSettings(c.env)
+    const prompt = await composeAiPromptWithSystemContacts(
+      c.env,
+      promptSettings,
+      key === 'global' ? null : key as any,
+      spec.sampleVariables,
+      routeStatus.settings,
+    )
+    const testInstruction = '\n\n<TEST_INSTRUCTION>这是提示词管理后台的测试，不要写入数据库。严格按照当前任务要求输出；只返回最终内容，不要解释提示词。</TEST_INSTRUCTION>'
     const result: any = await runConfiguredAi(
       c.env,
       { messages: [{ role: 'user', content: prompt + testInstruction }] },
-      { ...settings, maxTokens: Math.min(settings.maxTokens, 768) },
+      { ...settings, maxTokens: Math.max(settings.maxTokens, key === 'keyword' ? 1024 : 3072) },
     )
     const responseText = getAiResponseText(result).trim()
     if (!responseText) throw new Error('Workers AI 返回了空文本')
