@@ -666,7 +666,7 @@ export function renderArticlesList(rows: any[], statusFilter?: string): string {
             <a href="/admin/articles/${a.id}/wechat" style="color:#07c160">微信排版</a> &nbsp;
             <a href="/admin/articles/${a.id}/social" style="color:#ff2442">多平台分发</a> &nbsp;
             ${a.status === 'pending_review' ? `
-              <form style="display:inline" method="post" action="/admin/articles/${a.id}/approve"><button class="btn" style="padding:2px 10px">通过</button></form>
+              <form style="display:inline" method="post" action="/admin/articles/${a.id}/approve"><button class="btn" style="padding:2px 10px">审核通过并发布</button></form>
               <form style="display:inline" method="post" action="/admin/articles/${a.id}/reject" onsubmit="return setReason(this)">
                 <button class="btn secondary" style="padding:2px 10px">驳回</button>
               </form>
