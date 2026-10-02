@@ -96,6 +96,18 @@ D1 migrations → Worker → postdeploy check
 | 忘记管理员密码 | 没保存初始化令牌 | 使用首次部署时的 `SETUP_TOKEN`，不要删除 D1 |
 
 **判断“一键部署成功”的标准不是 Cloudflare 页面显示 Deploy finished，而是同时满足：** D1 migrations 已应用、Worker 已发布、`/healthz?probe=1` 正常、`/admin/setup` 可进入。首次管理员初始化完成后，才算业务站点真正可用。
+
+### 部署失败后的正确恢复方式
+
+**不要因为第一次部署失败就删除 Worker、D1、KV 或 R2。** 这个部署脚本按“探测 → 首次资源准备 → migration → 再部署 → 健康检查”的闭环设计，资源已经创建后，直接修复失败项并再次执行同一个 Deploy 即可。
+
+推荐排查顺序：
+
+1. 先看 Cloudflare 部署日志中**第一个失败步骤**，不要只看最后一行。
+2. 如果失败发生在 D1 migration，确认绑定名是 `DB`，然后直接重新部署。
+3. 如果 Worker 已发布但 postdeploy 失败，先访问 `/healthz?probe=1`，确认 `d1_schema` 和五个 bindings。
+4. 如果使用自定义域名、没有 workers.dev 地址，给 Workers Builds 设置 `DEPLOY_SMOKE_URL`，让同一套 postdeploy 检查继续做 HTTP 验收。
+5. **不要手工把 Build 改成远程 migration，也不要把 Deploy 改成 `npx wrangler deploy`**；否则会绕过仓库的统一部署闭环。
 ## 1. Cloudflare「设置您的应用程序」
 
 | 项目 | 设置 |
