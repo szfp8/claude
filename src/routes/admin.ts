@@ -361,28 +361,6 @@ adminRoutes.post('/articles/image-upload-page', async (c) => {
   return c.html('<main style="font:16px system-ui;max-width:760px;margin:40px auto;padding:20px"><h2>图片上传成功</h2><p>图片地址：</p><input style="width:100%;padding:10px" value="' + escapeHtml(url) + '" readonly onclick="this.select()" /><p>正文配图 HTML：</p><textarea style="width:100%;height:100px" onclick="this.select()">' + escapeHtml(snippet) + '</textarea><p><button onclick="navigator.clipboard.writeText(document.querySelector(\'input\').value)">复制图片地址</button> <button onclick="navigator.clipboard.writeText(document.querySelector(\'textarea\').value)">复制配图HTML</button></p><p><a href="javascript:history.back()">返回文章编辑</a>　<a href="/admin/media">打开媒体库</a></p></main>')
 })
 
-adminRoutes.post('/articles/image-upload', async (c) => {
-  const body = await c.req.parseBody()
-  const file = body.file instanceof File ? body.file : null
-  const mode = String(body.mode || 'cover') === 'inline' ? 'inline' : 'cover'
-  const articleId = String(body.article_id || '').trim()
-  if (!file || !file.name) return c.json({ ok: false, error: '请选择图片' }, 400)
-  if (file.size > 5 * 1024 * 1024) return c.json({ ok: false, error: '单张文章图片最大 5MB' }, 400)
-  if (!/^image\/(jpeg|png|webp|gif)$/.test(file.type)) {
-    return c.json({ ok: false, error: '仅支持 JPG、PNG、WEBP、GIF' }, 400)
-  }
-  const ext = file.type === 'image/jpeg' ? 'jpg' : file.type.split('/')[1]
-  const objectKey = 'media/articles/' + (articleId || 'new') + '/' + crypto.randomUUID() + '.' + ext
-  const object = await c.env.R2_MEDIA.put(objectKey, file.stream(), {
-    httpMetadata: { contentType: file.type, contentDisposition: 'inline' },
-    customMetadata: { purpose: mode === 'cover' ? 'article-cover' : 'article-inline-image', originalName: file.name },
-  })
-  await c.env.DB.prepare(
-    'INSERT INTO media_assets (object_key, original_name, content_type, size, etag) VALUES (?, ?, ?, ?, ?)'
-  ).bind(objectKey, file.name, file.type, file.size, object?.etag || null).run()
-  return c.json({ ok: true, mode, url: '/media/' + objectKey.slice('media/'.length), alt: file.name.replace(/\.[^.]+$/, '').slice(0, 120) })
-})
-
 adminRoutes.post('/articles/ai-preview', async (c) => {
   const b = await c.req.parseBody()
   const title = String(b.title || '').trim()
