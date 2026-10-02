@@ -782,6 +782,11 @@ export function renderArticleForm(article?: any, pageContact?: PageContactMethod
         <p style="font-size:12px;color:var(--muted);margin-top:8px">
           <a href="/admin/media" target="_blank" rel="noopener">打开媒体库上传 →</a>
           <span style="color:var(--muted)">上传 JPG/PNG/WEBP/GIF 后复制地址即可。</span>
+          <form method="post" action="/admin/articles/image-upload-page" enctype="multipart/form-data" target="_blank" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px">
+            <input type="file" name="file" accept="image/jpeg,image/png,image/webp,image/gif" required />
+            <button class="btn secondary" type="submit">⬆ 直接上传图片</button>
+            <span style="font-size:12px;color:var(--muted)">上传成功页可一键复制封面地址或正文配图 HTML。</span>
+          </form>
         </p>
       </div>
       <textarea name="summary" placeholder="摘要" rows="2">${escapeHtml(a.summary)}</textarea>
