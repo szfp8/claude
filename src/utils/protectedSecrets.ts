@@ -20,7 +20,11 @@ function unb64(value: string): Uint8Array {
 }
 
 async function getKey(env: Pick<Bindings, 'CACHE_KV' | 'JWT_SECRET'>): Promise<CryptoKey> {
-  const secret = await getJwtSecret(env)
+  let secret = await env.CACHE_KV.get('protected-secrets:key')
+  if (!secret) {
+    secret = b64(crypto.getRandomValues(new Uint8Array(32)))
+    await env.CACHE_KV.put('protected-secrets:key', secret)
+  }
   const digest = await crypto.subtle.digest('SHA-256', textEncoder.encode(secret))
   return crypto.subtle.importKey('raw', digest, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt'])
 }
