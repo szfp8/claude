@@ -1,5 +1,4 @@
 import type { Bindings } from '../types'
-import { getProtectedSecret } from './protectedSecrets'
 import { submitGoogleIndexing } from './googleIndexing'
 import { getProtectedSecret } from './protectedSecrets'
 import { MIN_INDEXABLE_OPPORTUNITY_SCORE } from './keywordScore'
