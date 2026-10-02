@@ -773,7 +773,7 @@ export function renderArticleForm(article?: any, pageContact?: PageContactMethod
 
       <div class="card" style="margin:12px 0;border-left:4px solid #7048e8">
         <strong>🖼️ 封面图 / 配图</strong>
-        <p style="color:var(--muted);font-size:12px;margin:6px 0">可填 R2 媒体路径（如 /media/xxx.jpg）或完整 HTTPS 图片 URL。可先到 <a href="/admin/media" target="_blank">R2 媒体库</a> 上传，再把地址粘贴到这里。AI 只辅助正文，图片由人工选择。</p>
+        <p style="color:var(--muted);font-size:12px;margin:6px 0">支持填写 R2/HTTPS 图片地址；也可以先在媒体库上传图片，再复制地址到这里。AI 负责正文和 SEO，图片仍由人工选择。</p>
         <label style="margin-top:8px">封面图地址 cover_image</label>
         <input name="cover_image" id="cover_image_input" placeholder="/media/your-image.jpg 或 https://..." value="${escapeHtml(a.cover_image || "")}" />
         <div id="cover_preview_wrap" style="margin-top:10px;${a.cover_image ? '' : 'display:none'}">
@@ -781,7 +781,7 @@ export function renderArticleForm(article?: any, pageContact?: PageContactMethod
         </div>
         <p style="font-size:12px;color:var(--muted);margin-top:8px">
           <a href="/admin/media" target="_blank" rel="noopener">打开媒体库上传 →</a>
-          上传后复制路径填入上方输入框。
+          <span style="color:var(--muted)">上传 JPG/PNG/WEBP/GIF 后复制地址即可。</span>
         </p>
       </div>
       <textarea name="summary" placeholder="摘要" rows="2">${escapeHtml(a.summary)}</textarea>
@@ -800,9 +800,9 @@ export function renderArticleForm(article?: any, pageContact?: PageContactMethod
       ${article ? '<button class="btn" type="button" onclick="document.getElementById(\'publishArticleForm\').submit()">发布并生成前台页面</button>' : ''}
       <button class="btn secondary" type="submit" formaction="/admin/articles/ai-publish" formmethod="post">🤖 AI生成正文+SEO并进入待审核</button>
       <button class="btn secondary" type="submit" formaction="/admin/articles/ai-preview" formmethod="post">正文留空：生成预览</button>
-      <span style="color:var(--muted);font-size:12px;margin-left:8px">预览直接使用当前标题、摘要和分类等表单内容，不写入数据库。</span>
+      <span style="color:var(--muted);font-size:12px;margin-left:8px">AI 生成结果先进入待审核；审核后可点击“发布并生成前台页面”。</span>
     </form>
-    ${article ? `<form class="admin-form" method="post" action="/admin/articles/${article.id}/ai-optimize" style="margin-top:10px"><button class="btn secondary" type="submit" onclick="return confirm('使用 Workers AI 优化当前文章正文？原文章链接会保留。')">🤖 AI优化当前文章</button><span style="color:var(--muted);font-size:12px;margin-left:8px">优化后仍是草稿，可继续编辑并手动发布。</span></form>` : ''}
+    ${article ? `<form class="admin-form" method="post" action="/admin/articles/${article.id}/ai-optimize" style="margin-top:10px"><button class="btn secondary" type="submit" onclick="return confirm('使用 Workers AI 优化当前文章正文？原文章链接会保留。')">🤖 AI优化当前文章</button><span style="color:var(--muted);font-size:12px;margin-left:8px">AI优化不会直接公开；审核确认后可点击上面的发布按钮。</span></form>` : ''}
     ${article ? `<form id="publishArticleForm" method="post" action="/admin/articles/${article.id}/publish" style="margin-top:10px"><span style="color:var(--muted);font-size:12px">发布会自动补齐 slug、正文（为空时尝试 AI 生成）、SEO 和内容卡，并直接打开前台页面。</span></form>` : ''}
 
     <form method="post" action="/admin/articles/${article ? article.id : 'new'}/content/delete" onsubmit="return confirm('确认删除这篇文章内容？删除后不可恢复。')" style="margin-top:10px">${article ? '<button class="btn secondary" type="submit">删除文章内容</button>' : ''}</form>
