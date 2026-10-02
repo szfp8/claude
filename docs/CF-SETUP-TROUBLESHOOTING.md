@@ -1,4 +1,4 @@
-# Cloudflare 一键部署与 /admin/setup 排查
+# Cloudflare 直接连接 GitHub 仓库与 /admin/setup 排查
 
 ## 1. 推荐：按仓库固定配置 Workers Builds
 
@@ -49,7 +49,7 @@
 ## 5. 成功路径
 
 ```text
-1. Deploy to Cloudflare 或连接 GitHub（保留默认 Builds）
+1. Workers Builds → Import a repository → 连接 GitHub / `szfp8/claude`
 2. 部署 success → /healthz?probe=1 → ok + d1_schema
 3. （必要时 Retry 一次）
 4. /admin/setup → /admin/settings
