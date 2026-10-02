@@ -342,6 +342,25 @@ adminRoutes.get('/articles', async (c) => {
 
 adminRoutes.get('/articles/new', (c) => c.html(renderArticleForm(undefined, undefined, String(c.req.query('error') || '').trim())))
 
+adminRoutes.post('/articles/image-upload-page', async (c) => {
+  const body = await c.req.parseBody()
+  const file = body.file instanceof File ? body.file : null
+  if (!file || !file.name) return c.html('<h3>请选择图片</h3><p><a href="javascript:history.back()">返回</a></p>', 400)
+  if (file.size > 5 * 1024 * 1024) return c.html('<h3>图片超过 5MB</h3><p><a href="javascript:history.back()">返回</a></p>', 400)
+  if (!/^image\/(jpeg|png|webp|gif)$/.test(file.type)) return c.html('<h3>仅支持 JPG、PNG、WEBP、GIF</h3><p><a href="javascript:history.back()">返回</a></p>', 400)
+  const ext = file.type === 'image/jpeg' ? 'jpg' : file.type.split('/')[1]
+  const objectKey = 'media/articles/' + crypto.randomUUID() + '.' + ext
+  const object = await c.env.R2_MEDIA.put(objectKey, file.stream(), {
+    httpMetadata: { contentType: file.type, contentDisposition: 'inline' },
+    customMetadata: { purpose: 'article-image', originalName: file.name },
+  })
+  await c.env.DB.prepare('INSERT INTO media_assets (object_key, original_name, content_type, size, etag) VALUES (?, ?, ?, ?, ?)')
+    .bind(objectKey, file.name, file.type, file.size, object?.etag || null).run()
+  const url = '/media/' + objectKey.slice('media/'.length)
+  const snippet = '<p><img src="' + url + '" alt="' + escapeHtml(file.name.replace(/\.[^.]+$/, '').slice(0, 120)) + '" /></p>'
+  return c.html('<main style="font:16px system-ui;max-width:760px;margin:40px auto;padding:20px"><h2>图片上传成功</h2><p>图片地址：</p><input style="width:100%;padding:10px" value="' + escapeHtml(url) + '" readonly onclick="this.select()" /><p>正文配图 HTML：</p><textarea style="width:100%;height:100px" onclick="this.select()">' + escapeHtml(snippet) + '</textarea><p><button onclick="navigator.clipboard.writeText(document.querySelector(\'input\').value)">复制图片地址</button> <button onclick="navigator.clipboard.writeText(document.querySelector(\'textarea\').value)">复制配图HTML</button></p><p><a href="javascript:history.back()">返回文章编辑</a>　<a href="/admin/media">打开媒体库</a></p></main>')
+})
+
 adminRoutes.post('/articles/image-upload', async (c) => {
   const body = await c.req.parseBody()
   const file = body.file instanceof File ? body.file : null
