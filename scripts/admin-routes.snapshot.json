@@ -97,6 +97,10 @@
   },
   {
     "method": "GET",
+    "path": "/recover"
+  },
+  {
+    "method": "GET",
     "path": "/seo"
   },
   {
@@ -398,6 +402,10 @@
   {
     "method": "POST",
     "path": "/production-cleanup"
+  },
+  {
+    "method": "POST",
+    "path": "/recover"
   },
   {
     "method": "POST",
