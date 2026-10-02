@@ -2,60 +2,49 @@
 
 一个可直接连接到 Cloudflare、可 Fork、可独立部署的 Cloudflare Workers CMS。仓库本身包含 Worker 源码、D1 migrations、KV/R2/AI/Assets 绑定、部署脚本、健康检查、CI 和完整部署说明。
 
-## 🚀 一键部署到 Cloudflare
+## 🚀 直接连接现有 GitHub 仓库部署到 Cloudflare
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https%3A%2F%2Fgithub.com%2Fszfp8%2Fclaude)
+**本仓库不使用 Cloudflare Deploy to Cloudflare Button 作为入口。** Cloudflare 官方说明该 Button 会把源 Git 仓库克隆到部署者的 GitHub/GitLab 账号并创建新的仓库，这与“`szfp8/claude` 作为唯一代码源、Cloudflare 直接跟踪它”的目标不同。
 
-### 本仓库的正确方式
-
-**不要创建新的专用 Git 存储库。**
-
-如果 Cloudflare 页面出现：
-
-> 创建专用 Git 存储库
-
-请保持**关闭/不勾选**，直接连接现有仓库：
-
-`szfp8/claude`
-
-这样 GitHub 仓库只有一个权威来源，Cloudflare Workers Builds 直接跟踪 `main`。
+正确入口是 Cloudflare **Workers Builds → Import a repository**，直接授权 GitHub 并选择现有仓库 **`szfp8/claude`**。这样 Cloudflare Workers Builds 直接连接这个仓库；以后推送到生产分支即可自动 Build + Deploy。
 
 标准链路：
 
 ```text
-szfp8/claude
-    ↓
-Deploy to Cloudflare
-    ↓
-连接现有 GitHub 仓库
-    ↓
-配置 Worker / D1 / KV / R2 / Secrets
-    ↓
-npm ci
-    ↓
-npm run build
-    ↓
-npm run deploy
-    ↓
+现有 GitHub 仓库：szfp8/claude
+        ↓
+Cloudflare Workers & Pages
+        ↓
+Create application → Import a repository
+        ↓
+选择 GitHub / szfp8/claude
+        ↓
+Build: npm run build
+        ↓
+Deploy: npm run deploy
+        ↓
+首次 deploy → Cloudflare 根据 wrangler.toml 准备资源
+        ↓
 D1 migrations
-    ↓
-postdeploy health check
-    ↓
-Worker Online
+        ↓
+最终 Worker deploy
+        ↓
+/healthz?probe=1
 ```
 
-## 0. 最短一键部署
+## 0. 最短首次部署步骤
 
-如果你只想完成第一次上线，按这 8 步即可：
+1. 打开 Cloudflare Dashboard → **Workers & Pages** → **Create application**。
+2. 选择 **Import a repository**，连接 GitHub。
+3. 选择现有仓库 **`szfp8/claude`**。
+4. **不要创建、Fork 或要求 Cloudflare 生成第二个 GitHub/GitLab 仓库**；这个仓库本身就是唯一源码来源。
+5. Production branch = `main`，Root directory = `/`。
+6. Build command = `npm run build`；Deploy command = `npm run deploy`；Node = `26.10.0`。
+7. **不要预先手工创建同名 D1/KV/R2。** Wrangler 配置提供资源名称和 bindings；首次 `npm run deploy` 先完成 Worker 发布/资源准备，再执行 D1 migrations，最后再次发布 Worker。
+8. 首次部署不需要填写第三方 Secret；上线后按需在后台配置 AI、邮件、IndexNow、Google 等。
+9. 部署成功后打开 `/admin/setup` 创建唯一管理员。
 
-1. 点击上面的 **Deploy to Cloudflare**。
-2. GitHub 选择现有仓库 **`szfp8/claude`**。
-3. **关闭「创建专用 Git 存储库」**，不要创建第二个代码仓库。
-4. Production branch = `main`，Root = `/`，Node = `26.10.0`。
-5. Build = `npm run build`，Deploy = `npm run deploy`。
-6. 不要先手工创建一套同名 D1/KV/R2；本仓库的 `wrangler.toml` + `npm run deploy` 会按当前 Cloudflare 账号完成资源准备与绑定。只有 Cloudflare 页面明确要求你选择已有资源时，才选择当前账号对应资源。
-7. 首次部署不需要填写任何 Secret；其他 AI、邮件、IndexNow、Google 密钥上线后按需在后台设置。
-8. 部署成功后打开 `/admin/setup` 创建唯一管理员。
+> **重要：** 如果你看到的是“Deploy to Cloudflare”按钮，它属于另一条“克隆仓库再部署”的流程；本项目的目标是**直接连接现有 `szfp8/claude` 仓库**，所以请从 Workers Builds 的 **Import a repository** 进入。
 
 ```text
 GitHub: szfp8/claude
@@ -99,11 +88,11 @@ D1 migrations → Worker → postdeploy check
 
 ### 部署失败后的正确恢复方式
 
-**不要因为第一次部署失败就删除 Worker、D1、KV 或 R2。** 这个部署脚本按“探测 → 首次资源准备 → migration → 再部署 → 健康检查”的闭环设计，资源已经创建后，直接修复失败项并再次执行同一个 Deploy 即可。
+**不要因为第一次部署失败就删除 Worker、D1、KV 或 R2。** 这个部署脚本按“首次 deploy → migration → 最终 deploy → 健康检查”的闭环设计。首次 deploy 负责让 Cloudflare 根据 wrangler.toml 完成资源准备；因此全新 Cloudflare 账号不需要先执行 D1 probe。资源已经创建后，直接修复失败项并再次执行同一个 Deploy 即可。
 
 推荐排查顺序：
 
-1. 先看 Cloudflare 部署日志中**第一个失败步骤**，不要只看最后一行。
+1. 先看 Cloudflare Workers Builds 日志中**第一个失败步骤**，不要只看最后一行。
 2. 如果失败发生在 D1 migration，确认绑定名是 `DB`，然后直接重新部署。
 3. 如果 Worker 已发布但 postdeploy 失败，先访问 `/healthz?probe=1`，确认 `d1_schema` 和五个 bindings。
 4. 如果使用自定义域名、没有 workers.dev 地址，给 Workers Builds 设置 `DEPLOY_SMOKE_URL`，让同一套 postdeploy 检查继续做 HTTP 验收。
@@ -113,7 +102,7 @@ D1 migrations → Worker → postdeploy check
 | 项目 | 设置 |
 |---|---|
 | Git 帐户 | 连接 GitHub |
-| 创建专用 Git 存储库 | **关闭** |
+| Git 仓库 | **直接连接现有 `szfp8/claude`** |
 | Git 仓库 | `szfp8/claude` |
 | Production branch | `main` |
 | Root directory | `/` |
@@ -144,7 +133,7 @@ D1 migrations → Worker → postdeploy check
 
 ## 3. 首次部署只保留必要设置
 
-Cloudflare 创建 Worker 时不要一次填满第三方服务密钥。**当前一键部署不需要任何 Secret**；首次部署完成后直接进入 `/admin/setup` 创建唯一管理员。`SETUP_TOKEN` 仅作为可选的初始化保护/密码恢复兼容入口。
+Cloudflare 创建/连接 Worker 时不要一次填满第三方服务密钥。**当前一键部署不需要任何 Secret**；首次部署完成后直接进入 `/admin/setup` 创建唯一管理员。`SETUP_TOKEN` 仅作为可选的初始化保护/密码恢复兼容入口。
 
 | 首次部署项目 | 是否需要 | 建议 |
 |---|---:|---|
@@ -471,11 +460,12 @@ WRANGLER_CI_OVERRIDE_NAME
 
 `npm run deploy` 会：
 
-1. 检查远程 D1 是否可访问。
-2. D1 尚未就绪时先发布一次 Worker，让 Cloudflare 完成资源准备。
-3. 执行 `wrangler d1 migrations apply DB --remote`。
-4. 再发布 Worker。
-5. 执行 `npm run postdeploy:check`。
+1. **先发布一次 Worker**，让 Cloudflare 根据 `wrangler.toml` 准备/绑定 D1、KV、R2、Workers AI 等资源。
+2. 执行 `wrangler d1 migrations apply DB --remote`。
+3. **再次发布最终 Worker**。
+4. 执行 `npm run postdeploy:check`，如果能取得 workers.dev URL，则继续执行 `/healthz?probe=1` HTTP 验收。
+
+特别注意：部署脚本**不再把 D1 `migrations list` 作为首次部署前置探测**。在全新 Cloudflare 账号中，D1 可能尚不存在，先探测会把正常的首次 provisioning 误判成部署失败。
 
 D1 binding 固定读取 `[[d1_databases]]` 的 `DB`，不会把 Assets 的 `ASSETS` 当成 D1。
 
