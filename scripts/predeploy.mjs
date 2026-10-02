@@ -27,4 +27,4 @@ if (pkg.scripts?.deploy !== 'node scripts/deploy-all.mjs') {
   process.exit(1)
 }
 
-console.log('predeploy OK: deploy-all will provision/check D1, apply migrations, then deploy the Worker')
+console.log('predeploy OK: deploy-all will deploy first for Cloudflare resource provisioning, apply D1 migrations, then deploy the final Worker')
