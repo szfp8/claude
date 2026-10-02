@@ -41,6 +41,8 @@ D1 migrations
 5. Production branch = `main`，Root directory = `/`。
 6. Build command = `npm run build`；Deploy command = `npm run deploy`；Node = `26.10.0`。
 7. **不要预先手工创建同名 D1/KV/R2。** Wrangler 配置提供资源名称和 bindings；首次 `npm run deploy` 先完成 Worker 发布/资源准备，再执行 D1 migrations，最后再次发布 Worker。
+
+> **D1 权限说明：** 当前 Workers Builds 自动创建的 API token 文档列出的权限包含 Workers Scripts/KV/R2，但没有列出 D1。若日志在 `wrangler d1 migrations apply DB --remote` 处报权限错误，需要在 Workers Builds 的 API token 设置中改用具有 **D1 Write** 权限的用户 token；这不要求预先创建 D1，资源仍由 Wrangler/Cloudflare 根据 `wrangler.toml` 准备。
 8. 首次部署不需要填写第三方 Secret；上线后按需在后台配置 AI、邮件、IndexNow、Google 等。
 9. 部署成功后打开 `/admin/setup` 创建唯一管理员。
 
@@ -49,9 +51,9 @@ D1 migrations
 ```text
 GitHub: szfp8/claude
        ↓
-Deploy to Cloudflare
+Workers Builds → Import a repository
        ↓
-现有仓库（不创建 dedicated repo）
+直接连接现有仓库（不创建第二个 repo）
        ↓
 DB / KV / R2 / AI / Assets
        ↓
