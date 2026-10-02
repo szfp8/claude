@@ -1,4 +1,5 @@
 import type { Bindings } from '../types'
+import { getProtectedSecret } from './protectedSecrets'
 
 export type AiProviderType = 'workers_ai' | 'openai_compatible'
 
@@ -162,9 +163,9 @@ async function runWorkersAi(env: Pick<Bindings, 'AI'>, input: Record<string, unk
   return result
 }
 
-async function runOpenAiCompatible(env: Pick<Bindings, 'EXTERNAL_AI_API_KEY'>, input: Record<string, unknown>, config: AiSettings): Promise<any> {
-  const apiKey = String(env.EXTERNAL_AI_API_KEY || '').trim()
-  if (!apiKey) throw new Error('外部 AI API Key 未配置。请在 Cloudflare Worker → Settings → Variables and Secrets 中新增 Secret：EXTERNAL_AI_API_KEY。')
+async function runOpenAiCompatible(env: Pick<Bindings, 'DB' | 'CACHE_KV' | 'JWT_SECRET' | 'EXTERNAL_AI_API_KEY'>, input: Record<string, unknown>, config: AiSettings): Promise<any> {
+  const apiKey = (await getProtectedSecret(env, 'EXTERNAL_AI_API_KEY')) || String(env.EXTERNAL_AI_API_KEY || '').trim()
+  if (!apiKey) throw new Error('外部 AI API Key 未配置。请进入后台「AI设置」填写；也可使用 Cloudflare Secret EXTERNAL_AI_API_KEY 作为兼容兜底。')
   if (!config.externalBaseUrl) throw new Error('外部 AI API 地址未配置或不是 HTTPS 公网地址。')
   if (!config.externalModel) throw new Error('外部 AI 模型名称未配置。')
 
@@ -216,7 +217,7 @@ async function runOpenAiCompatible(env: Pick<Bindings, 'EXTERNAL_AI_API_KEY'>, i
 }
 
 export async function runConfiguredAi(
-  env: Pick<Bindings, 'DB' | 'AI' | 'EXTERNAL_AI_API_KEY'>,
+  env: Pick<Bindings, 'DB' | 'AI' | 'CACHE_KV' | 'JWT_SECRET' | 'EXTERNAL_AI_API_KEY'>,
   input: Record<string, unknown>,
   settings?: AiSettings,
 ): Promise<any | null> {
