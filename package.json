@@ -10,7 +10,6 @@
     "deploy": "node scripts/deploy-all.mjs",
     "deploy:all": "node scripts/deploy-all.mjs",
     "doctor": "node scripts/doctor.mjs",
-    "setup:cloudflare": "node scripts/setup-cloudflare.mjs",
     "db:migrate:remote": "wrangler d1 migrations apply DB --remote",
     "db:migrate:local": "wrangler d1 migrations apply DB --local",
     "typecheck": "tsc --noEmit",
