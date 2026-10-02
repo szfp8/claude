@@ -18,7 +18,9 @@ Cloudflare「设置您的应用程序」里的：
 
 ## 2. 一键部署
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https%3A%2F%2Fgithub.com%2Fszfp8%2Fclaude)
+**正确入口：Cloudflare Dashboard → Workers & Pages → Create application → Import a repository → GitHub → `szfp8/claude`。**
+
+不要使用 **Deploy to Cloudflare Button**：该入口会走克隆/创建新仓库的流程，不符合本项目“现有 `szfp8/claude` 作为唯一代码源”的部署方式。
 
 ### Workers Builds
 
