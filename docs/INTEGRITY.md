@@ -47,9 +47,11 @@ Actions **只做校验**，不部署生产；生产靠 Cloudflare Workers Builds
 | `[build]` | ✅ | `npm run build`；远程 D1 migration 由 `deploy-all.mjs` 单一路径处理 |
 | 白标内容 | ✅ | 行业/站点主题来自设置，不绑定财税模板；`check:whitelabel` 扫描遗留行业词/域名 |
 | JWT | ✅ | 可留空，CACHE_KV 自动生成 |
-| 一键 CF | ✅ | Secret 可全空（`docs/CF-ONE-CLICK.md`） |
+| 一键 CF | ✅ | 首次建议仅保留 `SETUP_TOKEN`，其余服务密钥后台配置（`docs/CF-ONE-CLICK.md`） |
 | Contact Channels | ✅ | Header / Footer / Contact / AI / GEO 输出统一读取 `contact_channels`，显式空配置保持为空 |
-| AI Provider | ✅ | Workers AI / OpenAI-compatible + 可选 fallback；外部 Base URL 强制 HTTPS 并拒绝常见内网地址 |\n| SEO/GEO 发布闭环 | ✅ | pending_review → 人工审核 → published → Sitemap / 百度通知 / IndexNow / 内容发布包 |\n| 单元测试 | ✅ | `tests/*.test.ts` |
+| AI Provider | ✅ | Workers AI / OpenAI-compatible + 可选 fallback；外部 Base URL 强制 HTTPS 并拒绝常见内网地址 |
+| SEO/GEO 发布闭环 | ✅ | pending_review → 人工审核 → published → Sitemap / 百度通知 / IndexNow / 内容发布包 |
+| 单元测试 | ✅ | `tests/*.test.ts` |
 
 ---
 
