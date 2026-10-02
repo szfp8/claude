@@ -48,7 +48,8 @@ function fail(result, label) {
 
 function getD1Binding() {
   const text = readFileSync(join(root, 'wrangler.toml'), 'utf8')
-  return text.match(/binding\s*=\s*["']([^"']+)["']/)?.[1] || 'DB'
+  const match = text.match(/\[\[d1_databases\]\][\s\S]*?^binding\s*=\s*["']([^"']+)["']/m)
+  return match?.[1] || 'DB'
 }
 
 try {
