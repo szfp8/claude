@@ -22,4 +22,8 @@ if (/\[\[kv_namespaces\]\][\s\S]*?\bid\s*=\s*["'][^"']+["']/.test(wrangler)) { c
 if (/try-remote-migrate\.mjs/.test(wrangler)) { console.error('Deployment check failed: remote migration must not run from [build]'); process.exit(1) }
 for (const file of ['scripts/predeploy.mjs','scripts/deploy-all.mjs','scripts/postdeploy-check.mjs']) if (!fs.existsSync(file)) { console.error(`Deployment check failed: ${file} is missing`); process.exit(1) }
 if (fs.existsSync('scripts/deploy.mjs')) { console.error('Deployment check failed: obsolete scripts/deploy.mjs must not be present'); process.exit(1) }
+const readme = fs.readFileSync('README.md', 'utf8')
+for (const marker of ['https://deploy.workers.cloudflare.com/button', '创建专用 Git 存储库', 'Production branch = `main`', 'Build = `npm run build`', 'Deploy = `npm run deploy`', 'SETUP_TOKEN', '/admin/setup']) {
+  if (!readme.includes(marker)) { console.error(`Deployment check failed: README is missing one-click deployment marker: ${marker}`); process.exit(1) }
+}
 console.log('Cloudflare deploy configuration OK')
