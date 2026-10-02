@@ -33,9 +33,7 @@ npm run build
         ↓
 npm run deploy
         ↓
-远程 D1 migration probe
-        ↓
-D1 未就绪 → 首次 Worker deploy
+首次 Worker deploy / Cloudflare resource provisioning
         ↓
 wrangler d1 migrations apply DB --remote
         ↓
@@ -46,7 +44,7 @@ postdeploy:check
 完成
 ```
 
-D1 已存在并可访问时，会跳过首次准备部署，直接迁移并重新发布。
+不再执行首次部署前的 D1 probe；全新账号中 D1 可能尚不存在，应先完成资源 provisioning。
 
 ## 3. Cloudflare 绑定
 
@@ -84,14 +82,7 @@ Cloudflare API Token
 
 ## 5. Worker 名称
 
-部署脚本支持 Cloudflare 注入的名称：
-
-```text
-WRANGLER_CI_OVERRIDE_NAME
-→ CLOUDFLARE_WORKER_NAME
-→ WORKER_NAME
-→ wrangler.toml name
-```
+`wrangler.toml` 的 `name = "white-label-cms"` 必须与 Cloudflare Dashboard 中连接的 Worker 名称一致；部署脚本不再覆盖该名称。
 
 默认名称是：
 
@@ -101,14 +92,13 @@ white-label-cms
 
 ## 6. Secret
 
-首次部署只需要 `SETUP_TOKEN`；`JWT_SECRET`、`PBKDF2_ITERATIONS` 以及 IndexNow / AI / 邮件 / Google 等服务按需配置。第三方服务密钥推荐在后台设置，避免把非必要配置带入第一次资源创建。
+首次部署不需要第三方 Secret；`SETUP_TOKEN`、`JWT_SECRET` 等按需配置。；`JWT_SECRET`、`PBKDF2_ITERATIONS` 以及 IndexNow / AI / 邮件 / Google 等服务按需配置。第三方服务密钥推荐在后台设置，避免把非必要配置带入第一次资源创建。
 
 ## 7. 部署后验收
 
 `npm run postdeploy:check` 会：
 
-1. 检查远程 D1 migration 状态。
-2. 从部署输出中获取 workers.dev URL（如果存在）。
+1. 从部署输出中获取 workers.dev URL（如果存在）。
 3. 调用 `/healthz?probe=1`。
 4. 检查 DB、KV、R2、AI、Assets 和 D1 schema。
 
