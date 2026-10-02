@@ -4321,7 +4321,7 @@ adminRoutes.post('/settings/ai-seo', async (c) => {
       )
       await saveSetting(c.env, 'site_title', ai.title.slice(0, 120))
       await saveSetting(c.env, 'site_description', ai.summary.slice(0, 180))
-      if (keywords.length >= 3) await saveSetting(c.env, 'site_keywords', keywords.join(','))
+      // 固定关键词（全站候选词库）由管理员手工维护；AI SEO 规范不能覆盖词库。
       await saveSetting(c.env, 'site_seo_ai_generated', '1')
       await syncPageSeoKeywords(c.env)
       c.executionCtx.waitUntil(purgeCacheAll(c.executionCtx))
