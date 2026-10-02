@@ -79,7 +79,7 @@ binding = "AI"
 
 ## 4. Secrets
 
-首次部署只需要保留 `SETUP_TOKEN` 作为初始化与恢复入口：
+首次部署不需要填写任何 Secret。`SETUP_TOKEN` 仅作为可选的初始化保护与密码恢复入口：
 
 ```bash
 openssl rand -hex 32
