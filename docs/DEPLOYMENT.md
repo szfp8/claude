@@ -1,82 +1,201 @@
 # Cloudflare 白标 CMS 部署说明
 
-版本：`0.4.4+`（与 `package.json` / `main` 对齐）  
-Worker 默认名：`white-label-cms`；复制部署可通过 `CLOUDFLARE_WORKER_NAME` / Workers Builds 目标 Worker 覆盖  
-Node：`26.10.0`（`.nvmrc` / `.node-version` / `engines.node`）
+版本：`1.0.0`  
+Worker 默认名：`white-label-cms`  
+Node：`26.10.0`
 
-相关文档：`README.md` · `docs/CF-ONE-CLICK.md`（向导逐项填写） · `docs/CF-SETUP-TROUBLESHOOTING.md` · `docs/AUDIT-STATUS.md` · `docs/MIGRATIONS.md`
+## 1. 仓库完整性
 
-**语言：** 仅中文前台（无 English）。
+本仓库已经包含：
 
----
+- Worker 入口、路由、中间件和业务模块
+- 全部 D1 migrations
+- KV / D1 / R2 / AI / Assets 配置
+- Cloudflare 一键部署入口
+- D1 远程 migration 自动执行
+- 部署后健康检查
+- GitHub Actions 完整校验
+- 测试、TypeScript 和 Wrangler dry-run
 
-## 0. 部署前完整性清单（仓库已就绪项）
+仓库不包含任何账号专属 Cloudflare ID，也不包含生产 Secret。
 
-| 检查项 | 状态 |
-|--------|------|
-| 入口 `src/index.ts` + 路由 / 中间件 / 模块 | ✅ |
-| D1 migrations `0001`–`0019`（含白标空站） | ✅ |
-| 绑定：DB / CACHE_KV / R2_MEDIA / AI / ASSETS | ✅ |
-| `[build]` 仅构建；远程 D1 migration 由 `deploy-all.mjs` 统一处理 | ✅ |
-| Node 全链路 26.10.0 | ✅ |
-| CI：路由 / SEO / 白标 / migrations / test / dry-run | ✅ |
-| `/admin/setup` + 可选 `SETUP_TOKEN` | ✅ |
-| JWT 可 CACHE_KV 自动生成 | ✅ |
-| 前台仅中文 | ✅ |
+## 2. Cloudflare 一键部署
 
----
+Deploy to Cloudflare：
 
-## 1. 一键部署（推荐，无需本地）
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/szfp8/claude)
 
-打开 [Deploy to Cloudflare](https://deploy.workers.cloudflare.com/?url=https://github.com/szfp8/claude)。
+### 必须这样选
 
-在 **「设置您的应用程序」** 中按 `docs/CF-ONE-CLICK.md` 填写：
+```text
+GitHub                    = 当前 GitHub
+创建专用 Git 存储库       = 关闭
+仓库                      = szfp8/claude
+Production branch         = main
+Root directory            = /
+Build command             = npm run build
+Deploy command            = npm run deploy
+Node.js                   = 26.10.0
+读取复制                  = 关闭
+Preview Builds            = 首次关闭
+Cloudflare Access         = 首次关闭
+```
 
-- KV / D1 / R2 均选 **new**
-- **关闭**「启用读取复制」
-- **所有 Secret 可全部留空**（`JWT_SECRET` 由系统自动生成；`SETUP_TOKEN` 留空则无初始化门禁）
-- 预览构建 / Cloudflare Access 建议关闭
+**本仓库只有一个权威 Git 源，不创建第二个 dedicated repository。**
 
-部署后：
+## 3. 绑定
 
-1. `/healthz?probe=1` → `ok` 且 `d1_schema`
-2. `/admin/setup` 创建管理员（请尽快完成）
-3. `/admin/settings` 填站点信息
+```text
+KV       → CACHE_KV
+D1       → DB
+R2       → R2_MEDIA
+AI       → AI
+Assets   → ASSETS
+```
 
-首次 schema 未齐：先查看 `postdeploy:check` / `/healthz?probe=1`，不要把重试当作正常迁移步骤。
+模板默认：
 
----
+```toml
+name = "white-label-cms"
+main = "src/index.ts"
 
-## 2. 零配置 Builds
+[[d1_databases]]
+binding = "DB"
+database_name = "white-label-cms-db"
+migrations_dir = "migrations"
 
-| 字段 | 建议 |
-|------|------|
-| Production branch | `main` |
-| Root directory | 留空 |
-| Build command | 留空（由 `wrangler.toml` `[build]` 执行） |
-| Deploy command | `npm run deploy` |
-| Node.js | **26.10.0**（`.nvmrc`） |
+[[kv_namespaces]]
+binding = "CACHE_KV"
 
----
+[[r2_buckets]]
+binding = "R2_MEDIA"
+bucket_name = "white-label-cms-r2-media"
 
-## 3. 资源绑定
+[ai]
+binding = "AI"
+```
 
-| Binding | 用途 |
-|---------|------|
-| `DB` | D1 |
-| `CACHE_KV` | 限流 / **JWT 自动密钥** |
-| `R2_MEDIA` | 媒体 |
-| `AI` | Workers AI |
-| `ASSETS` | `public/` |
+不提交 `database_id`、KV `id` 等账号专属 ID。
 
----
+## 4. Secrets
 
-## 4. Secrets（均可留空）
+Cloudflare 页面需要的 Secret：
 
-| Secret | 留空时行为 |
-|--------|------------|
-| JWT_SECRET | **自动**：CACHE_KV 生成 256-bit 密钥 |
-| SETUP_TOKEN | 无门禁；请尽快 `/admin/setup` |
-| 其余 | 对应功能关闭，需要时再在 Dashboard 补填 |
+```text
+JWT_SECRET
+SETUP_TOKEN
+PBKDF2_ITERATIONS
+INDEXNOW_KEY
+EXTERNAL_AI_API_KEY
+RESEND_API_KEY
+GOOGLE_SERVICE_ACCOUNT_JSON
+```
 
-排障：`docs/CF-SETUP-TROUBLESHOOTING.md`。
+推荐值：
+
+```text
+JWT_SECRET                  = openssl rand -hex 32
+SETUP_TOKEN                 = openssl rand -hex 32
+PBKDF2_ITERATIONS           = 100000
+INDEXNOW_KEY                = openssl rand -hex 16
+EXTERNAL_AI_API_KEY         = unused（不用时）
+RESEND_API_KEY              = unused（不用时）
+GOOGLE_SERVICE_ACCOUNT_JSON = {}（不用时）
+```
+
+真实 Secret 只进入 Cloudflare，不进入 GitHub。
+
+## 5. 自动部署闭环
+
+```text
+Cloudflare Workers Builds
+        ↓
+npm ci
+        ↓
+npm run build
+        ↓
+npm run deploy
+        ↓
+检查远程 D1
+        ↓
+首次需要时先部署 Worker
+        ↓
+wrangler d1 migrations apply DB --remote
+        ↓
+再次部署 Worker
+        ↓
+npm run postdeploy:check
+        ↓
+Worker Online
+```
+
+如果第一轮已经创建资源，不要删除资源重来。
+
+## 6. 部署后
+
+访问：
+
+```text
+/healthz?probe=1
+```
+
+要求：
+
+```text
+ok=true
+DB=true
+CACHE_KV=true
+R2_MEDIA=true
+AI=true
+ASSETS=true
+d1_schema=true
+missing_tables=[]
+```
+
+然后访问：
+
+```text
+/admin/setup
+/admin/settings
+```
+
+## 7. 手动部署
+
+如需本地验证：
+
+```bash
+npm ci
+npx wrangler login
+npm run doctor
+npm run verify
+npm run validate:complete
+npm run deploy
+```
+
+手动路径与 Cloudflare Workers Builds 使用同一个 `npm run deploy`，不会产生第二套部署逻辑。
+
+## 8. CI
+
+`.github/workflows/deploy.yml` 是唯一权威验证 Workflow，负责：
+
+- Node / 脚本语法
+- 仓库完整性
+- 路由与白标
+- SEO/GEO
+- D1 migrations
+- TypeScript
+- 测试
+- Wrangler dry-run
+
+CI 不替代 Cloudflare 生产发布。
+
+## 9. 安全
+
+禁止提交：
+
+- API Token
+- Secret
+- Google Service Account JSON
+- 账号专属 D1/KV ID
+- 生产数据库导出
+- 用户数据
