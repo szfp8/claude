@@ -53,7 +53,7 @@ Worker Online
 3. **关闭「创建专用 Git 存储库」**，不要创建第二个代码仓库。
 4. Production branch = `main`，Root = `/`，Node = `26.10.0`。
 5. Build = `npm run build`，Deploy = `npm run deploy`。
-6. 绑定 `DB / CACHE_KV / R2_MEDIA / AI / ASSETS`。
+6. 不要先手工创建一套同名 D1/KV/R2；本仓库的 `wrangler.toml` + `npm run deploy` 会按当前 Cloudflare 账号完成资源准备与绑定。只有 Cloudflare 页面明确要求你选择已有资源时，才选择当前账号对应资源。
 7. 首次只保存一个 `SETUP_TOKEN`；其他 AI、邮件、IndexNow、Google 密钥上线后在后台设置。
 8. 部署成功后打开 `/admin/setup` 创建唯一管理员。
 
@@ -74,6 +74,28 @@ D1 migrations → Worker → postdeploy check
 ```
 
 **首次部署不要填写真实的第三方服务密钥。** `INDEXNOW_KEY`、`EXTERNAL_AI_API_KEY`、`RESEND_API_KEY`、`GOOGLE_SERVICE_ACCOUNT_JSON` 均可以登录后台后再配置。
+
+### 一键部署前必须确认的 6 件事
+
+1. **GitHub 源码只有一个权威仓库**：使用当前 `szfp8/claude`，不要让 Cloudflare 再创建 dedicated/private mirror repository。
+2. **Cloudflare 账号已连接 GitHub 且有 Workers/D1/KV/R2/AI 所需权限**；首次部署可能会要求授权或确认资源创建。
+3. **Production branch 固定 `main`**，Root directory 固定 `/`，不要把项目部署到子目录。
+4. **Build / Deploy 不要改成自定义命令**：分别使用 `npm run build` 和 `npm run deploy`，D1 migration 已包含在 deploy 闭环中。
+5. **不要把账号专属 ID 写回 `wrangler.toml`**。仓库故意不提交 D1 `database_id`、KV ID；这样 Fork 到新 Cloudflare 账号后才能重新绑定资源。
+6. **第一次部署失败不要删除已创建资源**。先看失败步骤；如果 Worker/KV/D1/R2 已创建，修复配置后直接重新执行 Deploy。
+
+### 首次部署最容易踩的坑
+
+| 现象 | 原因 | 处理 |
+|---|---|---|
+| Cloudflare 要求创建专用 Git 仓库 | 把“连接现有仓库”和“创建 dedicated repo”混在一起 | **关闭 dedicated repo**，继续使用 `szfp8/claude` |
+| `npm ci` 失败 | Node 版本不一致或 lockfile 不同步 | 使用 **Node 26.10.0**，重新连接当前仓库后再部署 |
+| D1 migration 失败 | 资源尚未就绪或绑定选择错误 | 不删资源；确认 `DB` binding 后重试 `npm run deploy` |
+| Worker 已上线但健康检查失败 | D1/KV/R2/AI/Assets 尚未全部完成绑定 | 打开 `/healthz?probe=1`，按 `missing_tables` / bindings 排查 |
+| AI 能连通但文章不能保存 | 模型输出没有满足正式内容质量门槛 | 在 AI 设置运行“城市页真实内容/文章真实内容”诊断 |
+| 忘记管理员密码 | 没保存初始化令牌 | 使用首次部署时的 `SETUP_TOKEN`，不要删除 D1 |
+
+**判断“一键部署成功”的标准不是 Cloudflare 页面显示 Deploy finished，而是同时满足：** D1 migrations 已应用、Worker 已发布、`/healthz?probe=1` 正常、`/admin/setup` 可进入。首次管理员初始化完成后，才算业务站点真正可用。
 ## 1. Cloudflare「设置您的应用程序」
 
 | 项目 | 设置 |
@@ -93,6 +115,8 @@ D1 migrations → Worker → postdeploy check
 仓库同时提供 `.nvmrc`、`.node-version` 和 `package.json` engines 约束 Node 版本。
 
 ## 2. Cloudflare 资源绑定
+
+**通常不需要在部署前手工创建这些资源。** `npm run deploy` 会读取 `wrangler.toml`，首次远程 D1 尚未就绪时先发布 Worker，再应用 migrations 并再次发布；后续部署复用当前账号的资源。
 
 绑定名称必须与 `wrangler.toml` 一致：
 
