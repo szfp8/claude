@@ -31,6 +31,7 @@ import { getGlobalSeoKeywords as getProfileGlobalSeoKeywords, getSiteProfile } f
 import { errorMessage } from '../utils/errors'
 import { escapeLike } from '../utils/geo'
 import { getImageStore, saveImageStore } from '../utils/imageSettings'
+import { getProtectedSecret, hasProtectedSecret, saveProtectedSecret } from '../utils/protectedSecrets'
 import { generateAiKeywords } from '../utils/aiKeywords'
 import { analyzeNewsSource, publishAnalyzedNewsCandidate, runNewsCollection } from '../cron/newsCollector'
 import { uploadPageImage, deletePageImage, removeImage } from '../utils/pageImages'
@@ -134,6 +135,28 @@ adminRoutes.post('/setup', async (c) => {
 })
 
 // ---------- 登录 / 登出（无需鉴权）----------
+adminRoutes.get('/recover', async (c) => {
+  return c.html(renderRecoverPage(c.req.query('error') || ''))
+})
+
+adminRoutes.post('/recover', async (c) => {
+  const b = await c.req.parseBody()
+  const setupToken = String(b.setup_token || '').trim()
+  if (!c.env.SETUP_TOKEN || !setupToken || !timingSafeEqual(setupToken, c.env.SETUP_TOKEN)) {
+    return c.html(renderRecoverPage('恢复令牌不正确。请使用首次部署时设置的 Cloudflare Secret：SETUP_TOKEN。'), 403)
+  }
+  const email = String(b.email || '').trim().toLowerCase()
+  const password = String(b.password || '')
+  const passwordError = validatePasswordStrength(password, email)
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return c.html(renderRecoverPage('请填写正确的管理员邮箱。'), 400)
+  if (passwordError) return c.html(renderRecoverPage(passwordError), 400)
+  const user = await c.env.DB.prepare('SELECT id FROM admin_users ORDER BY id LIMIT 1').first() as any
+  if (!user) return c.redirect('/admin/setup')
+  const hash = await hashPassword(password, getPbkdf2Iterations(c.env))
+  await c.env.DB.prepare('UPDATE admin_users SET email=?, password_hash=?, role=\'admin\' WHERE id=?').bind(email, hash, user.id).run()
+  return c.redirect('/admin/login?recovered=1')
+})
+
 adminRoutes.get('/login', async (c) => {
   if (!c.env.DB) return c.html(renderLoginPage('系统正在初始化，请稍后重试。'))
   try {
@@ -969,7 +992,7 @@ async function getAiRouteStatus(env: Bindings): Promise<{ ok: true; settings: Aw
       return { ok: false, message: '当前通道为 Workers AI，但 Binding “AI” 未生效：请在 Cloudflare Worker → Settings → Bindings 检查 AI 绑定并重新部署。' }
     }
   } else {
-    if (!String(env.EXTERNAL_AI_API_KEY || '').trim()) {
+    if (!(await hasProtectedSecret(env, 'EXTERNAL_AI_API_KEY')) && !String(env.EXTERNAL_AI_API_KEY || '').trim()) {
       return { ok: false, message: '当前通道为外部 OpenAI-compatible API，但 Secret EXTERNAL_AI_API_KEY 未配置。请在 Cloudflare Worker → Settings → Variables and Secrets 添加该 Secret。' }
     }
     if (!settings.externalBaseUrl) {
@@ -2618,7 +2641,6 @@ adminRoutes.post('/keywords/ai-generate', async (c) => {
     // 全站词库只保留少量主题词；页面 SEO 使用各自的城市/服务/文章意图，不再把全站词复制到每一页。
     const siteKeywords = normalizeKeywordCandidates([...oldKeywords, ...generated], 15).join(',')
     await saveSetting(c.env, 'site_keywords', siteKeywords)
-    await syncPageSeoKeywords(c.env)
     c.executionCtx.waitUntil(purgeCacheAll(c.executionCtx))
     return c.redirect('/admin/keywords?ai=1')
   } catch (e) {
@@ -2680,7 +2702,6 @@ async function generateKeywordMatrix(env: Bindings): Promise<number> {
 adminRoutes.post('/keywords/generate', async (c) => {
   try {
     const changed = await generateKeywordMatrix(c.env)
-    await syncPageSeoKeywords(c.env)
     c.executionCtx.waitUntil(purgeCacheAll(c.executionCtx))
     return c.redirect('/admin/keywords?message=' + encodeURIComponent('关键词矩阵已生成/更新：处理 ' + changed + ' 条城市×服务记录，并按统一规则重新计算机会分。'))
   } catch (e) {
@@ -3329,7 +3350,7 @@ adminRoutes.get('/seo', async (c) => {
     baidu: !!settingMap.get('baidu_token'),
     '360': !!settingMap.get('so_token'),
     sogou: !!settingMap.get('sogou_token'),
-    google: false,
+    google: await hasProtectedSecret(c.env, 'GOOGLE_SERVICE_ACCOUNT_JSON') || !!String(c.env.GOOGLE_SERVICE_ACCOUNT_JSON || '').trim(),
   }
   if (engine) { where.push('engine = ?'); params.push(engine) }
   if (q) { const like = '%' + escapeLike(q) + '%'; where.push(`(url LIKE ? ESCAPE char(92) OR response LIKE ? ESCAPE char(92) OR CAST(status_code AS TEXT) LIKE ? ESCAPE char(92))`); params.push(like, like, like) }
@@ -4060,8 +4081,10 @@ for (const group of ['city', 'service'] as const) {
 // ---- AI 设置 ----
 adminRoutes.get('/ai-settings', async (c) => {
   const settings = await getAiSettings(c.env)
+  const externalApiKeyConfigured = await hasProtectedSecret(c.env, 'EXTERNAL_AI_API_KEY') || !!String(c.env.EXTERNAL_AI_API_KEY || '').trim()
   return c.html(renderAiSettingsPage({
     ...settings,
+    externalApiKeyConfigured,
     saved: c.req.query('saved') === '1',
     test: c.req.query('test') || '',
     testModel: c.req.query('model') || '',
@@ -4085,6 +4108,8 @@ adminRoutes.post('/ai-settings', async (c) => {
     externalTimeoutMs: Number(b.ai_external_timeout_ms),
     fallbackEnabled: b.ai_fallback_enabled === 'on',
   }))
+  const externalKey = String(b.external_ai_api_key || '').trim()
+  if (externalKey) await saveProtectedSecret(c.env, 'EXTERNAL_AI_API_KEY', externalKey)
   c.executionCtx.waitUntil(purgeCacheAll(c.executionCtx))
   return c.redirect('/admin/ai-settings?saved=1')
 })
@@ -4387,7 +4412,15 @@ adminRoutes.post('/settings', async (c) => {
   // Deprecated: contact_* fields are no longer handled here.
   // Use /admin/modules/contact (Contact Channels) API instead.
 
-  if (Object.keys(updates).length) {
+    const protectedSecrets: Array<[string, string]> = [
+    ['RESEND_API_KEY', String((b as any).resend_api_key || '').trim()],
+    ['GOOGLE_SERVICE_ACCOUNT_JSON', String((b as any).google_service_account_json || '').trim()],
+  ]
+  for (const [name, secret] of protectedSecrets) {
+    if (secret) await saveProtectedSecret(c.env, name, secret)
+  }
+
+if (Object.keys(updates).length) {
     await c.env.DB.batch(
       Object.entries(updates).map(([key, val]) =>
         c.env.DB.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value')
