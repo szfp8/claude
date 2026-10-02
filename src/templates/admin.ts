@@ -1819,6 +1819,13 @@ export function renderAiPromptsPage(settings: AiPromptSettings, saved = '', test
     ${test.status === 'ok' ? `<div class="card" style="border-left:4px solid #1a8a4e;color:#1a8a4e;margin-bottom:16px"><strong>「${escapeHtml(test.key || '')}」提示词测试成功</strong><div style="margin-top:6px;font-size:12px;color:var(--muted)">通道：${escapeHtml(test.provider === 'openai_compatible' ? '外部 OpenAI-compatible API' : 'Workers AI')}；模型：${escapeHtml(test.model || '')}</div><div style="margin-top:8px;color:var(--text);white-space:pre-wrap;max-height:360px;overflow:auto">${escapeHtml(test.response || '')}</div><small style="display:block;margin-top:8px;color:var(--muted)">测试不会写入业务数据；用于检查当前生效提示词能否得到文本/指定结构。</small></div>` : ''}
     ${test.status === 'disabled' ? '<div class="card" style="border-left:4px solid #e5484d;color:#e5484d;margin-bottom:16px"><strong>AI 当前已关闭</strong><div style="margin-top:6px">请先在「AI 设置」开启 AI 内容生成，再测试提示词。</div></div>' : ''}
     ${test.status === 'error' ? `<div class="card" style="border-left:4px solid #e5484d;color:#e5484d;margin-bottom:16px"><strong>提示词测试失败</strong><div style="margin-top:6px">${escapeHtml(test.error || '未知错误')}</div></div>` : ''}
+    <div class="card" style="margin-bottom:16px;border-left:4px solid #7048e8">
+      <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap">
+        <div><strong>🏷️ 行业关键词自动识别</strong><p style="margin:6px 0 0;color:var(--muted);font-size:12px;line-height:1.8">AI 会读取当前站点行业、主题、核心服务、已有关键词，以及最近已发布文章和服务内容，识别可被公开内容证明的行业关键词，并写入「系统设置 → 行业关键词」。它不是盲目生成词，而是先从真实内容提取。</p></div>
+        <form method="post" action="/settings/generate-industry-keywords"><button class="btn secondary" type="submit">🤖 自动识别并设置行业关键词</button></form>
+      </div>
+      <p style="margin:8px 0 0;font-size:12px;color:var(--muted)">建议：先完善站点行业、主题和核心服务，再运行一次；生成后人工检查，AI 后续写作会自动读取这些行业关键词。</p>
+    </div>
     <div class="card" style="margin-bottom:16px">
       <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center">
         <strong>提示词总览</strong>
