@@ -8,7 +8,6 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
-import { randomBytes } from 'node:crypto'
 
 const root = process.cwd()
 const wrangler = process.platform === 'win32'
@@ -71,15 +70,11 @@ log('→ 执行 npm run deploy（资源检查 + D1 migrations + Worker 发布）
 const deploy = run(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['run', 'deploy'])
 if (deploy.status !== 0) fail('部署失败，请检查 Cloudflare 日志')
 
-const jwtHint = randomBytes(32).toString('base64url')
-const setupHint = randomBytes(16).toString('base64url')
-
 log('\n=== 部署完成 ===\n')
-log('建议配置：')
+log('建议配置真实随机 Secret：')
 log('npx wrangler secret put JWT_SECRET')
 log('npx wrangler secret put SETUP_TOKEN')
-log(`JWT 示例：${jwtHint}`)
-log(`SETUP 示例：${setupHint}`)
+log('不要把 Secret 写入 Git 仓库。')
 log('')
 log('/healthz?probe=1  → 检查 Worker 与 D1')
 log('/admin/setup     → 初始化管理员')
