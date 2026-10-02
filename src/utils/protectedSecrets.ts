@@ -1,5 +1,4 @@
 import type { Bindings } from '../types'
-import { getJwtSecret } from './auth'
 
 const PREFIX = 'v1'
 const textEncoder = new TextEncoder()
