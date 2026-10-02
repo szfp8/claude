@@ -273,6 +273,10 @@
   },
   {
     "method": "POST",
+    "path": "/geo"
+  },
+  {
+    "method": "POST",
     "path": "/keywords/:id/ai-content"
   },
   {
