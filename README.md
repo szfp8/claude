@@ -76,25 +76,47 @@ Worker Online
 
 模板不提交任何账号专属 D1 `database_id` 或 KV ID。
 
-## 3. 首次部署 Secrets
+## 3. 首次部署只保留必要设置
 
-这些值不能安全地提交进 GitHub，因此由 Cloudflare 创建页面填写。
+Cloudflare 创建 Worker 时不要一次填满所有第三方服务密钥。**首次部署真正建议保留的唯一 Secret 是 `SETUP_TOKEN`**，用于保护首个管理员初始化和忘记密码后的管理员恢复。
 
-建议：
+| 首次部署项目 | 是否需要 | 建议 |
+|---|---:|---|
+| `SETUP_TOKEN` | **建议必填** | `openssl rand -hex 32`；务必保存到密码管理器 |
+| `JWT_SECRET` | 可选 | 不填时登录密钥会由 `CACHE_KV` 自动生成并保存 |
+| `PBKDF2_ITERATIONS` | 可选 | 不填使用默认值；需要时可设 `100000` |
+| `INDEXNOW_KEY` | 不需要 | 登录后台后到「系统设置」填写 |
+| `EXTERNAL_AI_API_KEY` | 不需要 | 登录后台 →「AI 设置」填写，仅使用外部 AI 时需要 |
+| `RESEND_API_KEY` | 不需要 | 登录后台 →「系统设置」填写，仅启用邮件回复时需要 |
+| `GOOGLE_SERVICE_ACCOUNT_JSON` | 不需要 | 登录后台 →「系统设置」填写，仅启用 Google 服务账号时需要 |
 
-| Secret | 值 |
-|---|---|
-| `JWT_SECRET` | `openssl rand -hex 32` 生成的随机值 |
-| `SETUP_TOKEN` | `openssl rand -hex 32` 生成的随机值 |
-| `PBKDF2_ITERATIONS` | `100000` |
-| `INDEXNOW_KEY` | `openssl rand -hex 16` 生成的随机值 |
-| `EXTERNAL_AI_API_KEY` | 不使用外部 AI 时可填 `unused` |
-| `RESEND_API_KEY` | 不使用邮件时可填 `unused` |
-| `GOOGLE_SERVICE_ACCOUNT_JSON` | 不使用 Google 时填 `{}` |
+后台保存的第三方密钥不会回显，并会使用应用登录密钥加密后保存到 D1。Cloudflare Secret 仍可作为兼容兜底配置；推荐新站直接使用后台设置。
 
-其中后三项是可选服务配置；如果 Cloudflare UI 强制显示为必填，先使用占位值即可，但启用对应功能前必须替换为真实配置。
+**不要把任何真实密钥提交到 GitHub。**
 
-**不要把这些值提交到 GitHub。**
+### 首次部署后的设置顺序
+
+```text
+Deploy to Cloudflare
+  ↓
+Worker / D1 / KV / R2 / AI / Assets
+  ↓
+只配置 SETUP_TOKEN
+  ↓
+打开 /admin/setup 创建唯一管理员
+  ↓
+进入「系统设置」填写站点主题、联系方式、IndexNow / Resend / Google（按需）
+  ↓
+进入「AI 设置」选择 Workers AI 或外部 AI；外部 AI 才填写 API Key
+  ↓
+进入「AI 提示词」统一检查默认规则和各任务提示词
+  ↓
+进入「统一 SEO 关键词」建立候选词与关键词矩阵
+  ↓
+进入「SEO / 自然收录」检查 Sitemap、Robots 和通知渠道
+```
+
+**管理员忘记密码：**登录页点击「忘记密码」，使用首次部署时保存的 `SETUP_TOKEN` 重置唯一管理员邮箱和密码。若 `SETUP_TOKEN` 遗失，可先在 Cloudflare Secret 中设置一个新的 `SETUP_TOKEN`，再使用新的令牌恢复。
 
 ## 4. Worker 名称
 
