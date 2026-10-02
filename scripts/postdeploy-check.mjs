@@ -2,9 +2,10 @@
 /**
  * 部署后自动验收。
  *
- * D1 是硬性检查：远程 binding 必须可访问且没有未应用 migration。
- * 若 deploy 输出包含 workers.dev URL，则继续调用 /healthz?probe=1，
- * 验证 D1 schema、KV、R2、AI binding 与运行态。
+ * 远程 D1 migration 已由 deploy-all.mjs 在发布前应用；
+ * 这里不再重复调用 d1 migrations list，避免把“部署已成功”再次变成
+ * 一个额外的 D1 API 权限门槛。若有 workers.dev URL，则继续调用
+ * /healthz?probe=1，验证 D1 schema、KV、R2、AI、Assets 与运行态。
  *
  * 使用自定义域名或关闭 workers.dev 时，可设置 DEPLOY_SMOKE_URL，
  * 让同一部署闭环执行完整 HTTP 验收。
@@ -17,23 +18,13 @@ const root = process.cwd()
 const wrangler = process.platform === 'win32'
   ? join(root, 'node_modules', '.bin', 'wrangler.cmd')
   : join(root, 'node_modules', '.bin', 'wrangler')
+
 const deployOutput = process.argv.slice(2).join(' ')
 const smokeUrl = process.env.DEPLOY_SMOKE_URL || extractUrl(deployOutput)
 
 if (!existsSync(wrangler)) {
   console.error('✖ postdeploy:check：未找到 Wrangler')
   process.exit(1)
-}
-
-function run(args) {
-  const result = spawnSync(wrangler, args, {
-    cwd: root,
-    encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'pipe'],
-    env: process.env,
-  })
-  if (result.error) throw result.error
-  return result
 }
 
 function extractUrl(text) {
@@ -48,18 +39,9 @@ function fail(message, result) {
   process.exit(1)
 }
 
-const migrations = run(['d1', 'migrations', 'list', 'DB', '--remote', '--config', 'wrangler.toml'])
-if (migrations.status !== 0) fail('远程 D1 migration 状态检查失败', migrations)
-
-const migrationText = `${migrations.stdout || ''}\n${migrations.stderr || ''}`
-if (/\b(PENDING|pending|unapplied|not applied)\b/.test(migrationText)) {
-  fail('远程 D1 仍存在未应用 migration', migrations)
-}
-console.log('✔ D1 remote migration state OK')
-
 if (!smokeUrl) {
   console.log('ℹ 未检测到 workers.dev URL；自定义域名部署可设置 DEPLOY_SMOKE_URL 自动执行 HTTP 验收。')
-  console.log('✔ 部署后初始化检查完成（D1 + migration）')
+  console.log('✔ 部署后检查完成（未执行 HTTP smoke check）')
   process.exit(0)
 }
 
@@ -77,7 +59,10 @@ try {
   const requiredBindings = ['DB', 'CACHE_KV', 'R2_MEDIA', 'AI', 'ASSETS']
   const missingBindings = requiredBindings.filter((name) => bindings[name] !== true)
   if (!data.ok || data.d1_schema !== true || missingBindings.length > 0) {
-    fail(`Worker 健康检查未通过：D1 schema/bindings 尚未完成初始化${missingBindings.length ? `；缺少 ${missingBindings.join(', ')}` : ''}`, { stdout: JSON.stringify(data, null, 2) })
+    fail(
+      `Worker 健康检查未通过：D1 schema/bindings 尚未完成初始化${missingBindings.length ? `；缺少 ${missingBindings.join(', ')}` : ''}`,
+      { stdout: JSON.stringify(data, null, 2) },
+    )
   }
 
   console.log(JSON.stringify({
