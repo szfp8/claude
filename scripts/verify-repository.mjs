@@ -14,7 +14,8 @@ try {
   const pkg = JSON.parse(readFileSync(join(root,'package.json'),'utf8'))
   const requiredScripts = ['deploy','doctor','verify','typecheck','build','check:routes','check:public','check:seo-geo','check:deployment','check:migrations','check:whitelabel','check:contact-fields','test']
   for (const script of requiredScripts) check(`npm script ${script}`, Boolean(pkg.scripts?.[script]))
-  const versionFile = readFileSync(join(root,'VERSION'),'utf8').trim()\n  check('package version matches VERSION', pkg.version === versionFile)
+  const versionFile = readFileSync(join(root,'VERSION'),'utf8').trim()
+  check('package version matches VERSION', pkg.version === versionFile)
 } catch { check('package.json readable', false) }
 try {
   const wrangler = readFileSync(join(root,'wrangler.toml'),'utf8')
@@ -25,6 +26,11 @@ try {
   check('no hardcoded D1 database_id', !/database_id\s*=\s*["'][^"']+["']/.test(wrangler))
   check('no hardcoded KV id', !(/\[\[kv_namespaces\]\][\s\S]*?\bid\s*=\s*["'][^"']+["']/.test(wrangler)))
 } catch { check('wrangler.toml readable', false) }
-try {\n  const versionFile = readFileSync(join(root,'VERSION'),'utf8').trim()\n  check('VERSION readable', Boolean(versionFile))\n  const pkg = JSON.parse(readFileSync(join(root,'package.json'),'utf8'))\n  check('VERSION matches package version', versionFile === pkg.version)\n} catch { check('VERSION readable', false) }
+try {
+  const versionFile = readFileSync(join(root,'VERSION'),'utf8').trim()
+  check('VERSION readable', Boolean(versionFile))
+  const pkg = JSON.parse(readFileSync(join(root,'package.json'),'utf8'))
+  check('VERSION matches package version', versionFile === pkg.version)
+} catch { check('VERSION readable', false) }
 if (failed) { console.error('\nRepository validation failed.'); process.exit(1) }
 console.log('\nRepository validation passed.')
