@@ -1,6 +1,6 @@
-# Cloudflare 一键部署填写说明
+# Cloudflare 直接连接现有仓库部署说明
 
-本说明对应 Cloudflare **「设置您的应用程序」** / Deploy to Cloudflare 页面。
+本说明对应 Cloudflare **Workers Builds → Import a repository**。本仓库要求直接连接现有 GitHub 仓库 `szfp8/claude`，不创建第二个 GitHub/GitLab 仓库。
 
 ## 1. Git 仓库
 
@@ -10,13 +10,7 @@
 szfp8/claude
 ```
 
-Cloudflare 页面如果出现：
-
-```text
-创建专用 Git 存储库
-```
-
-请**不要勾选**。
+正确入口：Cloudflare Dashboard → Workers & Pages → Create application → **Import a repository** → GitHub → `szfp8/claude`。不要使用 Deploy to Cloudflare Button 作为本项目入口，因为该入口会克隆源仓库并创建新的仓库。
 
 不要再创建 `white-label-cms` 之类的第二份 GitHub 仓库，否则会产生两个代码源，后续修改容易部署错仓库。
 
@@ -151,6 +145,3 @@ missing_tables=[]
 
 完成初始化。
 
-## 8. Deploy 按钮
-
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/szfp8/claude)
