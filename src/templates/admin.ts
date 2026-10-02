@@ -1514,8 +1514,8 @@ export function renderSeoPage(opts: {
 
     <div class="card">
       <p><strong>自然收录优先：</strong>发布文章后 URL 会立即进入动态 Sitemap；后台随后异步通知已配置的百度普通收录、IndexNow/Bing，并记录提交日志。Google 普通文章使用 Search Console/Sitemap；360、搜狗以 Sitemap 与自然抓取为主。国内视频/内容平台同步生成发布包。<br/>IndexNow Key 文件：${opts.siteUrl}/&lt;key&gt;.txt。统一 SEO 关键词：<a href="/admin/keywords">进入固定关键词设置 →</a></p>
-      <form method="post" action="/admin/seo/auto-fill" style="display:inline-block;margin:0 8px 8px 0">
-        <button class="btn secondary" type="submit">一键补齐全部 SEO</button>
+      <form method="post" action="/admin/seo/auto-fill" style="display:inline-block;margin:0 8px 8px 0" onsubmit="return confirm(&quot;仅补齐城市、服务、已发布文章的 SEO 标题、描述和 3-5 个主题词，不修改正文、固定候选词库、Sitemap 或 Robots。继续？&quot;)">
+        <button class="btn secondary" type="submit">一键补齐内容页 SEO</button>
       </form>
       <form method="post" action="/admin/seo/submit" style="display:inline-block;margin:0 8px 8px 0" onsubmit="return confirm('将当前 Sitemap 中的公开 URL 提交给已配置的搜索引擎通知渠道。通知不等于已经收录。继续？')">
         <button class="btn" type="submit">📣 通知搜索引擎</button>
