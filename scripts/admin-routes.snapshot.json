@@ -229,10 +229,6 @@
   },
   {
     "method": "POST",
-    "path": "/articles/image-upload"
-  },
-  {
-    "method": "POST",
     "path": "/articles/image-upload-page"
   },
   {
