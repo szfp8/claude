@@ -37,6 +37,10 @@
   },
   {
     "method": "GET",
+    "path": "/articles/image-upload"
+  },
+  {
+    "method": "GET",
     "path": "/articles/new"
   },
   {
@@ -226,6 +230,14 @@
   {
     "method": "POST",
     "path": "/articles/ai-publish"
+  },
+  {
+    "method": "POST",
+    "path": "/articles/image-upload"
+  },
+  {
+    "method": "POST",
+    "path": "/articles/image-upload-page"
   },
   {
     "method": "POST",
