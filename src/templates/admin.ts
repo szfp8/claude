@@ -155,13 +155,43 @@ export function renderSocialHub(article: any, platforms: PlatformConfig[], posts
 }
 
 // ---- 单平台编辑/预览/复制页 ----
+export function renderSocialSettingsPage(settings: Record<string, string>, platforms: PlatformConfig[]): string {
+  const saved = String((settings as any).__social_saved || '') === '1'
+  const error = String((settings as any).__social_error || '')
+  return renderAdminLayout({
+    title: '社交平台入口设置', active: '/admin/social',
+    body: `
+    <div class="section-title">
+      <div><h2>⚙️ 社交平台入口设置</h2><p style="margin:4px 0 0;color:var(--muted);font-size:13px">只保存平台官方创作/发布入口地址，不保存账号密码，也不会自动代发。</p></div>
+      <a href="/admin/social">← 返回内容分发</a>
+    </div>
+    ${error ? '<div class="card" style="border-left:4px solid #e5484d;color:#c92a2a;margin-bottom:16px">' + escapeHtml(error) + '</div>' : ''}
+    ${saved ? '<div class="card" style="border-left:4px solid #1a8a4e;color:#1a8a4e;margin-bottom:16px">平台入口设置已保存。</div>' : ''}
+    <form class="admin-form" method="post" action="/admin/social/settings">
+      ${platforms.map((p) => {
+        const value = String(settings['social_entry_' + p.key] || '')
+        return \`
+        <div class="card" style="margin-bottom:12px">
+          <h3 style="margin:0 0 8px">\${p.icon} \${escapeHtml(p.label)}</h3>
+          <label>创作 / 发布入口 URL</label>
+          <input type="url" name="social_entry_\${p.key}" value="\${escapeHtml(value)}" placeholder="https://..." />
+          <p style="margin:6px 0 0;color:var(--muted);font-size:12px">\${escapeHtml(p.helpText)}</p>
+          \${value ? '<p style="margin:8px 0 0"><a class="btn secondary" href="' + escapeHtml(value) + '" target="_blank" rel="noopener noreferrer">打开入口 ↗</a></p>' : '<p style="margin:8px 0 0;color:var(--muted);font-size:12px">尚未设置入口地址。</p>'}
+        </div>\`
+      }).join('')}
+      <button class="btn" type="submit">保存平台入口</button>
+    </form>
+  `,
+  })
+}
+
 export function renderSocialDistributionPage(rows: any[], platforms: PlatformConfig[]): string {
   const statusLabel: Record<string, string> = { not_synced: '未生成', ready: '待人工发布', copied: '已复制', scheduled: '已排期' }
   return renderAdminLayout({
     title: '国内内容分发', active: '/admin/social',
     body: `
-    <div class="section-title"><h2>📣 国内内容分发</h2><a href="/admin/articles">内容管理 →</a></div>
-    <p class="admin-help">官网文章人工发布后，系统自动生成四个平台的发布包。此页用于统一查看状态并进入编辑。</p>
+    <div class="section-title"><h2>📣 国内内容分发</h2><div style="display:flex;gap:8px;flex-wrap:wrap"><a class="btn secondary" href="/admin/social/settings">⚙️ 平台入口设置</a><a href="/admin/articles">内容管理 →</a></div></div>
+    <p class="admin-help">官网文章发布后生成各平台发布包。这里可以查看状态、直接进入对应平台编辑，并配置每个平台的官方创作/发布入口。</p>
     <div class="grid grid-4" style="margin-bottom:16px">
       ${platforms.map((p) => '<div class="card"><strong>' + p.icon + ' ' + escapeHtml(p.label) + '</strong><p style="font-size:12px;color:var(--muted);margin:6px 0">' + escapeHtml(p.helpText) + '</p><span class="badge">' + escapeHtml(p.copyMode === 'richtext' ? '富文本复制' : '纯文本复制') + '</span></div>').join('')}
     </div>
@@ -173,7 +203,7 @@ export function renderSocialDistributionPage(rows: any[], platforms: PlatformCon
           <tbody>
           ${rows.length ? rows.map((row) => {
             const cell = (key: string) => '<span class="badge">' + escapeHtml(statusLabel[String(row[key] || 'not_synced')]) + '</span>'
-            return '<tr><td><strong>' + escapeHtml(row.title || '') + '</strong></td><td>' + escapeHtml(row.published_at || '') + '</td><td>' + cell('douyin_status') + '</td><td>' + cell('kuaishou_status') + '</td><td>' + cell('xiaohongshu_status') + '</td><td>' + cell('bilibili_status') + '</td><td><a class="btn secondary" href="/admin/articles/' + encodeURIComponent(String(row.id)) + '/social">打开发布包</a></td></tr>'
+            return '<tr><td><strong>' + escapeHtml(row.title || '') + '</strong></td><td>' + escapeHtml(row.published_at || '') + '</td><td><a href="/admin/articles/' + encodeURIComponent(String(row.id)) + '/social/douyin">' + cell('douyin_status') + '</a></td><td><a href="/admin/articles/' + encodeURIComponent(String(row.id)) + '/social/kuaishou">' + cell('kuaishou_status') + '</a></td><td><a href="/admin/articles/' + encodeURIComponent(String(row.id)) + '/social/xiaohongshu">' + cell('xiaohongshu_status') + '</a></td><td><a href="/admin/articles/' + encodeURIComponent(String(row.id)) + '/social/bilibili">' + cell('bilibili_status') + '</a></td><td><a class="btn secondary" href="/admin/articles/' + encodeURIComponent(String(row.id)) + '/social">总览</a></td></tr>'
           }).join('') : '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:28px">暂无已发布文章</td></tr>'}
           </tbody>
         </table>
