@@ -2,6 +2,37 @@
 
 一个可直接连接到 Cloudflare、可独立部署的 Cloudflare Workers CMS。仓库本身包含 Worker 源码、D1 migrations、KV/R2/AI/Assets 绑定、部署脚本、健康检查、CI 和完整部署说明。
 
+## ☁️ 一键部署到 Cloudflare
+
+### 推荐：直接连接现有 `szfp8/claude`（不创建第二个仓库）
+
+<a href="https://dash.cloudflare.com/?to=/:account/workers-and-pages/create" target="_blank"><img src="https://img.shields.io/badge/Cloudflare-Import%20existing%20GitHub%20repository-F38020?logo=cloudflare&logoColor=white" alt="Import existing GitHub repository to Cloudflare Workers" /></a>
+
+点击后进入 Cloudflare Workers & Pages 创建流程，选择 **Import a repository**，然后选择现有的 **`szfp8/claude`**。Cloudflare 官方当前的 Git 集成支持直接连接已有 GitHub 仓库，并在后续 push 时自动 Build + Deploy。citeturn0search0turn0search6
+
+**这是本项目推荐的“一键入口”**，因为它保持：
+
+- GitHub 唯一源码仓库：`szfp8/claude`
+- Production branch：`main`
+- 不创建第二个 GitHub/GitLab 仓库
+- Cloudflare Workers Builds 自动跟踪当前仓库
+- Build：`npm run build`
+- Deploy：`npm run deploy`
+
+### Cloudflare 官方 Deploy to Cloudflare 按钮
+
+如果你希望给其他人提供真正的 Cloudflare 官方“一键部署”按钮，也可以使用下面入口：
+
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https%3A%2F%2Fgithub.com%2Fszfp8%2Fclaude)
+
+**重要区别：这个官方按钮不是本项目生产环境的首选入口。** Cloudflare 官方说明，Deploy to Cloudflare 会把公开 Git 仓库克隆到部署者自己的 GitHub/GitLab 账号并创建新的仓库，然后为这个新仓库配置 Workers Builds。citeturn0search7turn0search4
+
+因此：
+
+- **你自己部署当前项目** → 使用 **Import existing GitHub repository**。
+- **给别人提供独立副本部署** → 可以使用 **Deploy to Cloudflare**。
+- 如果你的要求是“始终只有 `szfp8/claude` 一个代码源”，**不要使用 Deploy to Cloudflare 按钮**。
+
 ## 🚀 直接连接现有 GitHub 仓库部署到 Cloudflare
 
 **本仓库不使用 Cloudflare Deploy to Cloudflare Button 作为入口。** Cloudflare 官方说明该 Button 会把源 Git 仓库克隆到部署者的 GitHub/GitLab 账号并创建新的仓库，这与“`szfp8/claude` 作为唯一代码源、Cloudflare 直接跟踪它”的目标不同。
@@ -173,7 +204,7 @@ Worker / D1 / KV / R2 / AI / Assets
 进入「SEO / 自然收录」检查 Sitemap、Robots 和通知渠道
 ```
 
-**管理员忘记密码：**登录页点击「忘记密码」，使用首次部署时保存的 `SETUP_TOKEN` 重置唯一管理员邮箱和密码。若 `SETUP_TOKEN` 遗失，可先在 Cloudflare Secret 中设置一个新的 `SETUP_TOKEN`，再使用新的令牌恢复。
+**管理员忘记密码：**登录页点击「忘记密码」，使用当前 Worker 配置的 `SETUP_TOKEN` 重置唯一管理员邮箱和密码。**如果首次部署从未配置过 `SETUP_TOKEN`，不存在可以找回的旧值**：直接到 Cloudflare Worker → Settings → Variables and Secrets 新建一个 `SETUP_TOKEN` Secret，设置新的随机值并重新 Deploy，再使用新的令牌恢复。
 
 ## 4. 后台管理入口怎么用
 
@@ -450,10 +481,17 @@ name = "white-label-cms"
 如果 Cloudflare Workers Builds 注入了 Worker 名称，部署脚本会按以下优先级使用：
 
 ```text
-WRANGLER_CI_OVERRIDE_NAME
-→ CLOUDFLARE_WORKER_NAME
-→ WORKER_NAME
-→ wrangler.toml name
+当前部署脚本**不再读取或覆盖** `WRANGLER_CI_OVERRIDE_NAME`、`CLOUDFLARE_WORKER_NAME`、`WORKER_NAME`。Worker 名称以 `wrangler.toml` 为准。
+
+Cloudflare 官方要求通过 Workers Builds 连接仓库时，Dashboard 中的 Worker 名称与 Wrangler 配置中的 `name` 保持一致，否则构建可能失败。citeturn0search0
+
+因此首次连接仓库时，请使用：
+
+```text
+Worker name = white-label-cms
+```
+
+不要把账号专属名称、D1 ID、KV ID 等写回 Git 仓库。
 ```
 
 因此不要为了某个账号手工写入账号专属名称。
