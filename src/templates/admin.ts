@@ -761,7 +761,8 @@ export function renderArticleForm(article?: any, pageContact?: PageContactMethod
     </div>` : ''}
     ${a.card_svg ? `<div class="card" style="max-width:320px;margin-bottom:12px">${renderSafeSvgImage(a.card_svg)}</div>` : ''}
     <form id="articleImageUploadForm" method="post" action="/admin/articles/image-upload-page" enctype="multipart/form-data" target="_blank" hidden></form>
-    <form class="admin-form" method="post" action="${article ? `/admin/articles/${article.id}/edit` : '/admin/articles/new'}">      <input name="title" placeholder="标题" value="${escapeHtml(a.title)}" required />
+    <form class="admin-form" method="post" action="${article ? `/admin/articles/${article.id}/edit` : '/admin/articles/new'}">
+      <input name="title" placeholder="标题" value="${escapeHtml(a.title)}" required />
       <input name="slug" placeholder="URL别名 (留空自动生成)" value="${escapeHtml(a.slug)}" />
       <div class="card" style="margin:12px 0;border-left:4px solid var(--primary)">
         <strong>📌 前台行业资讯标签（可直接修改）</strong>
