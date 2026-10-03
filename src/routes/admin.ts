@@ -4541,6 +4541,19 @@ adminRoutes.post('/settings', async (c) => {
     if (has(key)) updates[key] = value(key, max)
   }
 
+  if (has('site_url')) {
+    const siteUrl = updates.site_url || ''
+    if (siteUrl) {
+      try {
+        const parsed = new URL(siteUrl)
+        if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password) throw new Error('invalid')
+        updates.site_url = parsed.origin + parsed.pathname.replace(/\\/$/, '') + parsed.search + parsed.hash
+      } catch {
+        return c.redirect('/admin/settings?error=' + encodeURIComponent('公开站点地址必须是完整的 http:// 或 https:// 地址。'))
+      }
+    }
+  }
+
   // Deprecated: contact_* fields are no longer handled here.
   // Use /admin/modules/contact (Contact Channels) API instead.
 
