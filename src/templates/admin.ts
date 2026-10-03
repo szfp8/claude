@@ -1984,7 +1984,9 @@ export function renderSettingsPage(settings: Record<string, string>, error = '',
         <span class="badge">模板：${escapeHtml(settings.site_template || 'custom')}</span>
         <span class="badge">服务：${escapeHtml(String(siteProfile.primaryServices.slice(0,5).join('、')))}</span>
       </div>
-      <p style="margin:0 0 12px;color:var(--muted);font-size:12px;line-height:1.7">首次部署保持白标空站点。行业名称、服务、行业关键词和新闻分类都由后台输入；不会自动携带其他站点的运营数据。</p>
+      <p style="margin:0 0 12px;color:var(--muted);font-size:12px;line-height:1.7">首次部署保持白标空站点。站点名称、行业名称、服务、行业关键词和新闻分类都由这里统一定义；AI、SEO、GEO 和前台页面共用这份站点画像。</p>
+      <label>前台站点名称（全站统一）</label>
+      <input name="site_name" maxlength="80" value="${escapeHtml(settings.site_name || '')}" placeholder="例如：你的品牌名称" />
       <label>网站核心主题</label>
       <input name="site_topic" maxlength="120" value="${escapeHtml(settings.site_topic || '')}" placeholder="例如：本地服务解决方案" />
       <label>网站行业</label>
@@ -2009,7 +2011,7 @@ export function renderSettingsPage(settings: Record<string, string>, error = '',
 
     <div class="card admin-settings-card">
       <h3 style="margin:0 0 6px">🤖 AI 内容写作</h3>
-      <p style="margin:0 0 12px;color:var(--muted);font-size:13px;line-height:1.8">按页面资料生成清晰的标题、简介和正文，重点保证页面信息完整、结构清楚、手机和电脑端阅读舒适。</p>
+      <p style="margin:0 0 12px;color:var(--muted);font-size:13px;line-height:1.8">按当前站点画像和页面资料生成清晰的标题、简介和正文。行业关键词、AI提示词和 GEO 会自动读取上面的站点画像；无需在多个地方重复填写。</p>
       <div class="admin-ai-shortcuts">
         <form method="post" action="/admin/settings/ai-seo"><input type="hidden" name="target" value="site" /><button class="btn secondary" type="submit">AI写站点信息</button></form>
         <form method="post" action="/admin/settings/ai-seo"><input type="hidden" name="target" value="home" /><button class="btn secondary" type="submit">AI写首页</button></form>
@@ -2023,8 +2025,6 @@ export function renderSettingsPage(settings: Record<string, string>, error = '',
     </div>
 
     <form class="admin-form" method="post" action="/admin/settings">
-      <label>前台站点名称</label>
-      <input name="site_name" maxlength="80" value="${escapeHtml(settings.site_name || '')}" placeholder="例如：你的品牌名称" />
       <label>站点标题</label>
       <input name="site_title" value="${escapeHtml(settings.site_title || '')}" />
       <label>站点描述</label>
