@@ -862,6 +862,11 @@ export function renderCitiesList(rows: any[], catalog: any[] = [], message = '')
     title: '城市管理', active: '/admin/cities',
     body: `
     <div class="section-title"><h2>城市管理</h2><a class="btn secondary" href="/admin/services">服务管理 →</a></div>
+    <div class="card" style="margin-bottom:16px;background:#f8fbff;border-color:#dbe7f7">
+      <strong>城市与服务怎么关联？</strong>
+      <p style="color:var(--muted);font-size:12px;line-height:1.8;margin:6px 0 0">城市 = 地域维度（例如深圳、广州）；服务 = 业务维度（例如企业咨询、项目服务）。两者不是父子关系。只有在「关键词矩阵」里组合成“城市 × 服务”时，才形成具体的本地服务落地词和落地页。</p>
+      <p style="margin:8px 0 0;font-size:12px"><a href="/admin/keywords">去关键词矩阵查看城市 × 服务 →</a>　<a href="/admin/services">查看服务管理 →</a></p>
+    </div>
     <p style="color:var(--muted)">选择全国城市加入城市库。已经添加的城市会自动从选择器中隐藏并按名称/slug 去重；新增城市会参与城市 × 服务 SEO 矩阵。</p>
     ${message ? `<div class="card" style="border-left:4px solid #1a8a4e;color:#1a8a4e;margin-bottom:16px">${escapeHtml(message)}</div>` : ''}
     <div class="card" style="margin-bottom:18px">
