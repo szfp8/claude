@@ -170,14 +170,14 @@ export function renderSocialSettingsPage(settings: Record<string, string>, platf
     <form class="admin-form" method="post" action="/admin/social/settings">
       ${platforms.map((p) => {
         const value = String(settings['social_entry_' + p.key] || '')
-        return \`
+        return `
         <div class="card" style="margin-bottom:12px">
           <h3 style="margin:0 0 8px">\${p.icon} \${escapeHtml(p.label)}</h3>
           <label>创作 / 发布入口 URL</label>
           <input type="url" name="social_entry_\${p.key}" value="\${escapeHtml(value)}" placeholder="https://..." />
           <p style="margin:6px 0 0;color:var(--muted);font-size:12px">\${escapeHtml(p.helpText)}</p>
           \${value ? '<p style="margin:8px 0 0"><a class="btn secondary" href="' + escapeHtml(value) + '" target="_blank" rel="noopener noreferrer">打开入口 ↗</a></p>' : '<p style="margin:8px 0 0;color:var(--muted);font-size:12px">尚未设置入口地址。</p>'}
-        </div>\`
+        </div>`
       }).join('')}
       <button class="btn" type="submit">保存平台入口</button>
     </form>
