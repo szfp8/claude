@@ -1,6 +1,4 @@
 import type { Context } from 'hono'
-import type { Bindings } from '../types'
-
 const PLACEHOLDER = 'https://your-domain.com'
 
 // SITE_URL 是可选的公开站点地址覆盖项，不是 Secret。
@@ -21,8 +19,4 @@ export async function resolveSiteUrl(c: Context): Promise<string> {
   } catch {
     return (configured || PLACEHOLDER).replace(/\/$/, '')
   }
-}
-
-export function isSiteUrlConfigured(env: Bindings): boolean {
-  return !!env.SITE_URL && env.SITE_URL !== PLACEHOLDER
 }
