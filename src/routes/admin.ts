@@ -43,7 +43,7 @@ import { renderArticlePage } from '../templates/public'
 import {
   renderLoginPage, renderSetupPage, renderRecoverPage, renderDashboard, renderArticlesList, renderArticleForm, renderArticleAiPreview,
   renderCitiesList, renderKeywordsList, renderKeywordForm, renderMessagesList, renderNewsSourcesList,
-  renderSeoPage, renderGeoPage, renderSocialDistributionPage, renderSettingsPage, renderCityForm, renderServiceForm, renderCollectionLogsList,
+  renderSeoPage, renderGeoPage, renderSocialDistributionPage, renderSocialSettingsPage, renderSettingsPage, renderCityForm, renderServiceForm, renderCollectionLogsList,
   renderSystemPage, renderAiSettingsPage, renderAiPromptsPage, renderAdminLayout, renderWechatEditor, renderSocialHub, renderSocialEditor, renderMediaPage, renderAdminUsersPage, renderPageSettingsPage, renderSubprojectsList, renderSubprojectForm,
 } from '../templates/admin'
 
