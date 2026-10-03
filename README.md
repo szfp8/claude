@@ -182,6 +182,19 @@ Cloudflare 创建/连接 Worker 时不要一次填满第三方服务密钥。**�
 
 **不要把任何真实密钥提交到 GitHub。**
 
+### JWT 会话密钥与 SITE_URL
+
+| 配置 | 是否必须 | 推荐方式 | 说明 |
+|---|---:|---|---|
+| `JWT_SECRET` | 否 | 留空 | 登录会话使用 HMAC-SHA256；留空时首次需要会话密钥时由 `CACHE_KV` 自动生成 256-bit 随机密钥并持久化。 |
+| `SITE_URL` | 否 | 留空 | 不是 Secret。系统优先读取后台「系统设置 → 公开站点地址」，再兼容读取 Cloudflare `SITE_URL`，两者都没有时直接使用当前请求域名。 |
+
+**正常一键部署不需要在 Cloudflare Variables 里填写 `SITE_URL`。** 单域名站点建议留空，让系统自动按实际访问域名生成 Sitemap、Robots、llms.txt、AI Index 等绝对地址。
+
+如果一个 Worker 同时挂多个域名，而你希望 Sitemap/GEO 等绝对链接始终固定到某个主域名，则在后台填写完整的 `https://...` 地址即可；不必再设置 Cloudflare `SITE_URL`。Cloudflare 变量只保留为兼容旧部署的可选兜底。
+
+`SITE_URL` 不应填写 JWT、API Key 等敏感信息；它只是公开 URL。
+
 ### 首次部署后的设置顺序
 
 ```text
