@@ -34,6 +34,13 @@ Workers Builds 建议：
 | Deploy command | `npm run deploy` |
 | Node.js | `26.10.0` |
 
+
+```text
+Production branch = `main`
+Build command = `npm run build`
+Deploy command = `npm run deploy`
+```
+
 本项目不要求 Cloudflare 创建第二个 GitHub/GitLab 仓库。**不要创建、Fork 或要求 Cloudflare 生成第二个 GitHub/GitLab 仓库**；也不要把 Deploy to Cloudflare Button 的“复制仓库”流程当成生产部署入口。
 
 ### Cloudflare 资源绑定
