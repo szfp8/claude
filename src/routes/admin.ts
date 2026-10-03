@@ -516,8 +516,16 @@ adminRoutes.post('/articles/new', async (c) => {
   let aiDraftGenerated = false
   if (!articleContent) {
     aiDraftGenerated = true
-    const ai = await generateAiPageContent(c.env, { type: 'article', title: String(b.title || ''), summary: String(b.summary || ''), keywords: getArticleAiKeywords(String(b.title || ''), String(b.summary || '')) })
-    articleContent = ai?.content || '<p>请补充文章正文。</p>'
+    try {
+      const ai = await generateAiPageContent(c.env, { type: 'article', title: String(b.title || ''), summary: String(b.summary || ''), keywords: getArticleAiKeywords(String(b.title || ''), String(b.summary || '')) })
+      if (!ai?.content) {
+        return c.redirect('/admin/articles/new?error=' + encodeURIComponent('正文为空且 AI 未生成有效内容，请先在「AI设置」测试 AI 通道，或填写正文后保存。'))
+      }
+      articleContent = ai.content
+    } catch (e) {
+      console.error('new article AI draft generation failed', e)
+      return c.redirect('/admin/articles/new?error=' + encodeURIComponent(errorMessage(e, '正文为空，AI 生成失败；请检查「AI设置」或先填写正文。').slice(0, 220)))
+    }
   }
   const finalStatus = (aiDraftGenerated || String(b.from_ai_preview || '') === '1')
     ? statusAfterAiDraft(requestedStatus)
@@ -597,9 +605,17 @@ adminRoutes.post('/articles/:id/edit', async (c) => {
   let articleContent = String(b.content || '').trim()
   if (!articleContent) {
     aiDraftGenerated = true
-    const ai = await generateAiPageContent(c.env, { type: 'article', title: String(b.title || ''), summary: String(b.summary || ''), keywords: getArticleAiKeywords(String(b.title || ''), String(b.summary || '')) })
-    articleContent = ai?.content || '<p>请补充文章正文。</p>'
-    status = statusAfterAiDraft(status)
+    try {
+      const ai = await generateAiPageContent(c.env, { type: 'article', title: String(b.title || ''), summary: String(b.summary || ''), keywords: getArticleAiKeywords(String(b.title || ''), String(b.summary || '')) })
+      if (!ai?.content) {
+        return c.redirect('/admin/articles/' + encodeURIComponent(id) + '/edit?error=' + encodeURIComponent('正文为空且 AI 未生成有效内容，请先在「AI设置」测试 AI 通道，或填写正文后保存。'))
+      }
+      articleContent = ai.content
+      status = statusAfterAiDraft(status)
+    } catch (e) {
+      console.error('edit article AI draft generation failed', e)
+      return c.redirect('/admin/articles/' + encodeURIComponent(id) + '/edit?error=' + encodeURIComponent(errorMessage(e, '正文为空，AI 生成失败；请检查「AI设置」或先填写正文。').slice(0, 220)))
+    }
   }
   let cardSvg = existing?.card_svg || null
   if (status === 'published' && !cardSvg) {
