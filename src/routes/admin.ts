@@ -4204,17 +4204,19 @@ adminRoutes.post('/settings/contact-qr', async (c) => {
   const fileValue = (await c.req.parseBody()).file
   const file = fileValue instanceof File ? fileValue : null
   if (!file || !file.name) return c.redirect('/admin/settings?error=' + encodeURIComponent('请选择二维码文件'))
-  if (file.size > 5 * 1024 * 1024) return c.redirect('/admin/settings?error=' + encodeURIComponent('二维码文件最大 5MB'))
-  if (!/^image\/(jpeg|png|webp)$/.test(file.type)) {
-    return c.redirect('/admin/settings?error=' + encodeURIComponent('二维码仅支持 JPG、PNG、WEBP'))
+  let actualType: string
+  try {
+    actualType = await validateImageFile(file)
+  } catch (e) {
+    return c.redirect('/admin/settings?error=' + encodeURIComponent(String((e as any)?.message || '二维码图片格式无效')))
   }
 
   const oldQr = await c.env.DB.prepare("SELECT value FROM settings WHERE key='contact_qr_url'").first() as any
   const imageBytes = await file.arrayBuffer()
   if (!imageBytes.byteLength) return c.redirect('/admin/settings?error=' + encodeURIComponent('二维码文件为空，请重新选择图片'))
-  const objectKey = 'media/contact/wechat-' + crypto.randomUUID() + '.' + ((file.type.split('/')[1] || 'png').replace(/[^a-z0-9]/g, ''))
+  const objectKey = 'media/contact/wechat-' + crypto.randomUUID() + '.' + (actualType === 'image/jpeg' ? 'jpg' : actualType.split('/')[1])
   await c.env.R2_MEDIA.put(objectKey, imageBytes, {
-    httpMetadata: { contentType: file.type, contentDisposition: 'inline' },
+    httpMetadata: { contentType: actualType, contentDisposition: 'inline' },
     customMetadata: { purpose: 'wechat-contact-qr', originalName: file.name },
   })
   const publicUrl = '/media/' + objectKey.slice('media/'.length)
