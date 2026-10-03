@@ -4376,6 +4376,8 @@ adminRoutes.post('/settings/generate-industry-keywords', async (c) => {
     const merged = normalizeKeywordCandidates([...String(settings.industry_keywords || '').split(/[,，;；\n、]+/), ...candidates], 30)
     if (!merged.length) throw new Error('AI没有返回可用行业关键词，请先填写站点行业、主题或核心服务。')
     await saveSetting(c.env, 'industry_keywords', merged.join(','))
+    // 行业关键词属于全站 AI/SEO 上下文；生成后立即同步页面级 SEO 词，不要求用户再手动执行一次 SEO 操作。
+    await syncPageSeoKeywords(c.env)
     c.executionCtx.waitUntil(purgeCacheAll(c.executionCtx))
     return c.redirect('/admin/settings?saved=1&ai=industry-keywords')
   } catch (e) {
