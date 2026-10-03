@@ -421,10 +421,6 @@
   },
   {
     "method": "POST",
-    "path": "/production-cleanup"
-  },
-  {
-    "method": "POST",
     "path": "/recover"
   },
   {
