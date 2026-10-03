@@ -760,8 +760,8 @@ export function renderArticleForm(article?: any, pageContact?: PageContactMethod
         : '<span style="color:var(--muted);font-size:12px">当前文章还没有已发布的前台页面。</span>'}
     </div>` : ''}
     ${a.card_svg ? `<div class="card" style="max-width:320px;margin-bottom:12px">${renderSafeSvgImage(a.card_svg)}</div>` : ''}
-    <form class="admin-form" method="post" action="${article ? `/admin/articles/${article.id}/edit` : '/admin/articles/new'}">
-      <input name="title" placeholder="标题" value="${escapeHtml(a.title)}" required />
+    <form id="articleImageUploadForm" method="post" action="/admin/articles/image-upload-page" enctype="multipart/form-data" target="_blank" hidden></form>
+    <form class="admin-form" method="post" action="${article ? `/admin/articles/${article.id}/edit` : '/admin/articles/new'}">      <input name="title" placeholder="标题" value="${escapeHtml(a.title)}" required />
       <input name="slug" placeholder="URL别名 (留空自动生成)" value="${escapeHtml(a.slug)}" />
       <div class="card" style="margin:12px 0;border-left:4px solid var(--primary)">
         <strong>📌 前台行业资讯标签（可直接修改）</strong>
@@ -782,12 +782,12 @@ export function renderArticleForm(article?: any, pageContact?: PageContactMethod
         <p style="font-size:12px;color:var(--muted);margin-top:8px">
           <a href="/admin/media" target="_blank" rel="noopener">打开媒体库上传 →</a>
           <span style="color:var(--muted)">上传 JPG/PNG/WEBP/GIF 后复制地址即可。</span>
-          <form method="post" action="/admin/articles/image-upload-page" enctype="multipart/form-data" target="_blank" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px">
-            <input type="file" name="file" accept="image/jpeg,image/png,image/webp,image/gif" required />
-            <button class="btn secondary" type="submit">⬆ 直接上传图片</button>
-            <span style="font-size:12px;color:var(--muted)">上传成功页可一键复制封面地址或正文配图 HTML。</span>
-          </form>
         </p>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px">
+          <input type="file" name="file" form="articleImageUploadForm" accept="image/jpeg,image/png,image/webp,image/gif" required />
+          <button class="btn secondary" type="submit" form="articleImageUploadForm">⬆ 直接上传图片</button>
+          <span style="font-size:12px;color:var(--muted)">上传成功页可一键复制封面地址或正文配图 HTML。</span>
+        </div>
       </div>
       <textarea name="summary" placeholder="摘要" rows="2">${escapeHtml(a.summary)}</textarea>
       <textarea name="content" placeholder="正文内容（支持HTML）；留空后保存会自动由 Workers AI 生成，也可以先点下方“AI生成预览”检查后再保存" rows="10">${escapeHtml(a.content)}</textarea>
