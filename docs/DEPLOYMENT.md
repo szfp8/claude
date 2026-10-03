@@ -84,7 +84,8 @@ openssl rand -hex 32
 
 以下配置按需使用，第三方密钥推荐在后台配置，而不是阻塞第一次部署：
 
-- `JWT_SECRET`：可选；留空时由 `CACHE_KV` 自动生成。
+- `JWT_SECRET`：可选；留空时由 `CACHE_KV` 自动生成 256-bit 会话密钥。
+- `SITE_URL`：可选公开 URL 覆盖项；推荐在后台「系统设置 → 公开站点地址」填写，正常单域名部署可完全留空。
 - `PBKDF2_ITERATIONS`：可选；留空使用默认值。
 - `INDEXNOW_KEY`：后台「系统设置」按需配置。
 - `EXTERNAL_AI_API_KEY`：后台「AI 设置」按需配置。
@@ -185,3 +186,22 @@ CI 不替代 Cloudflare 生产发布。
 - 账号专属 D1/KV ID
 - 生产数据库导出
 - 用户数据
+
+
+## JWT 会话密钥与站点地址
+
+### JWT_SECRET
+后台会话使用 HMAC-SHA256 签名。未配置 `JWT_SECRET` 时，系统首次需要会话密钥时从 `CACHE_KV` 读取；不存在则生成 32 字节随机密钥并写入 KV。这样首次部署不需要手工生成 JWT Secret。
+
+如果 `CACHE_KV` 未绑定，登录初始化会明确提示需要配置 `JWT_SECRET` 或修复 KV 绑定。已有生产站点如果要强制固定密钥，可以使用 Cloudflare Secret `JWT_SECRET`。
+
+### SITE_URL
+`SITE_URL` 不是 Secret，也不是首次部署必填项。系统优先使用后台设置中的 `site_url`，其次兼容 Cloudflare `SITE_URL`，最后按当前 HTTP 请求的 origin 自动生成。
+
+后台路径：`/admin/settings → 公开站点地址（可选）`
+
+- 单域名站点：留空，自动使用当前访问域名。
+- 多域名但需要固定主域名：在后台填写主域名。
+- 不需要为了上线专门在 Cloudflare Variables 中创建 `SITE_URL`。
+
+该地址主要用于 Sitemap、Robots、llms.txt、AI Index 等需要绝对 URL 的公开输出。
