@@ -3389,6 +3389,27 @@ adminRoutes.post('/geo', async (c) => {
 })
 
 // ---- 国内内容分发总览 ----
+adminRoutes.get('/social/settings', async (c) => {
+  const settings = await readSettingsMap(c.env)
+  ;(settings as any).__social_saved = c.req.query('saved') || ''
+  ;(settings as any).__social_error = c.req.query('error') || ''
+  return c.html(renderSocialSettingsPage(settings, PLATFORM_LIST))
+})
+
+adminRoutes.post('/social/settings', async (c) => {
+  const body = await c.req.parseBody()
+  for (const platform of PLATFORM_LIST) {
+    const key = 'social_entry_' + platform.key
+    const value = String(body[key] || '').trim()
+    if (value && !/^https?:\/\//i.test(value)) {
+      return c.redirect('/admin/social/settings?error=' + encodeURIComponent(platform.label + '入口必须是 http:// 或 https:// 地址'))
+    }
+    await saveSetting(c.env, key, value)
+  }
+  await purgeCacheAll(c.executionCtx)
+  return c.redirect('/admin/social/settings?saved=1')
+})
+
 adminRoutes.get('/social', async (c) => {
   const rows = (await c.env.DB.prepare(
     "SELECT a.id, a.title, a.published_at, " +
