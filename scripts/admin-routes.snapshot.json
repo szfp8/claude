@@ -69,10 +69,6 @@
   },
   {
     "method": "GET",
-    "path": "/logout"
-  },
-  {
-    "method": "GET",
     "path": "/media"
   },
   {
