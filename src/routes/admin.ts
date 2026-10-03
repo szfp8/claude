@@ -484,7 +484,7 @@ adminRoutes.post('/articles/:id/ai-optimize', async (c) => {
       : 'AI优化现有文章；原文章链接已保留。').run()
 
     if (wasPublished) {
-      const updatedSiteUrl = resolveSiteUrl(c)
+      const updatedSiteUrl = await resolveSiteUrl(c)
       notifyDeletedUrl(
         c.env,
         updatedSiteUrl + '/article/' + encodeURIComponent(String(article.slug || id)),
@@ -557,7 +557,7 @@ adminRoutes.post('/articles/new', async (c) => {
       ).bind(created.id, 'ai_generate', 'AI', '空正文由 AI 辅助补齐，已进入人工审核；不能因表单选择直接公开。').run()
     }
     if (finalStatus === 'published') {
-      const publishedSiteUrl = resolveSiteUrl(c)
+      const publishedSiteUrl = await resolveSiteUrl(c)
       notifyPublishedUrl(
         c.env,
         publishedSiteUrl + '/article/' + encodeURIComponent(slug),
@@ -647,7 +647,7 @@ adminRoutes.post('/articles/:id/edit', async (c) => {
     ).bind(id, 'ai_generate', 'AI', '空正文由 AI 辅助补齐，已进入人工审核；请人工确认后再发布。').run()
   }
 
-  const changedSiteUrl = resolveSiteUrl(c)
+  const changedSiteUrl = await resolveSiteUrl(c)
   const changedArticleUrl = changedSiteUrl + '/article/' + encodeURIComponent(slug)
   if (wasPublished && oldSlug && oldSlug !== slug) {
     notifyDeletedUrl(
@@ -715,7 +715,7 @@ adminRoutes.post('/articles/:id/publish', async (c) => {
     'INSERT INTO review_logs (article_id, action, operator, note) VALUES (?, ?, ?, ?)'
   ).bind(id, 'publish', '管理员', '生成/补齐前台文章页面并发布').run()
 
-  const publishedSiteUrl = resolveSiteUrl(c)
+  const publishedSiteUrl = await resolveSiteUrl(c)
   notifyPublishedUrl(
     c.env,
     publishedSiteUrl + '/article/' + encodeURIComponent(slug),
@@ -735,7 +735,7 @@ adminRoutes.post('/articles/:id/content/delete', async (c) => {
   const id = c.req.param('id')
   const article = await c.env.DB.prepare('SELECT id, slug, cover_image FROM articles WHERE id=?').bind(id).first() as any
   if (!article) return c.notFound()
-  const deletedSiteUrl = resolveSiteUrl(c)
+  const deletedSiteUrl = await resolveSiteUrl(c)
   if (String(article.slug || '').trim()) {
     notifyDeletedUrl(
       c.env,
@@ -759,7 +759,7 @@ adminRoutes.post('/articles/:id/delete', async (c) => {
   if (!id) return c.notFound()
   const article = await c.env.DB.prepare('SELECT id, slug, cover_image FROM articles WHERE id=?').bind(id).first() as any
   if (!article) return c.notFound()
-  const deletedSiteUrl = resolveSiteUrl(c)
+  const deletedSiteUrl = await resolveSiteUrl(c)
   if (String(article.slug || '').trim()) {
     notifyDeletedUrl(
       c.env,
@@ -972,7 +972,7 @@ adminRoutes.post('/articles/:id/approve', async (c) => {
   await c.env.DB.prepare('INSERT INTO review_logs (article_id, action, operator, note) VALUES (?, ?, ?, ?)')
     .bind(id, 'approve', 'admin', '人工审核通过：补齐 slug / SEO 后正式发布').run()
 
-  const publishedSiteUrl = resolveSiteUrl(c)
+  const publishedSiteUrl = await resolveSiteUrl(c)
   const publicUrl = publishedSiteUrl + '/article/' + encodeURIComponent(slug)
   notifyPublishedUrl(c.env, publicUrl, publishedSiteUrl, c.executionCtx)
   c.executionCtx.waitUntil(
@@ -2878,7 +2878,7 @@ adminRoutes.get('/news-sources', async (c) => {
 
 adminRoutes.post('/news-sources/collect', async (c) => {
   c.executionCtx.waitUntil(
-    runNewsCollection(c.env, undefined, c.executionCtx, resolveSiteUrl(c)).catch((e) => console.error('manual news collection failed', e))
+    runNewsCollection(c.env, undefined, c.executionCtx, await resolveSiteUrl(c)).catch((e) => console.error('manual news collection failed', e))
   )
   return c.redirect('/admin/news-sources?started=1')
 })
@@ -2889,7 +2889,7 @@ adminRoutes.post('/news-sources/:id/collect', async (c) => {
   const source = await c.env.DB.prepare('SELECT id FROM news_sources WHERE id=?').bind(id).first()
   if (!source) return c.notFound()
   c.executionCtx.waitUntil(
-    runNewsCollection(c.env, id, c.executionCtx, resolveSiteUrl(c)).catch((e) => console.error('single news source collection failed', e))
+    runNewsCollection(c.env, id, c.executionCtx, await resolveSiteUrl(c)).catch((e) => console.error('single news source collection failed', e))
   )
   return c.redirect('/admin/news-sources?started=1')
 })
@@ -2973,7 +2973,7 @@ adminRoutes.post('/news-sources/:id/analyze-publish', async (c) => {
       link: String(candidate.link || ''),
       evidence: String(candidate.evidence || ''),
       confidence: Number(candidate.confidence || 0),
-    }, resolveSiteUrl(c), c.executionCtx).catch(async (e) => {
+    }, await resolveSiteUrl(c), c.executionCtx).catch(async (e) => {
       const errorText = errorMessage(e, '发布失败').slice(0, 1200)
       console.error('publish analyzed news candidate failed', {
         sourceId: id,
@@ -3373,7 +3373,7 @@ adminRoutes.get('/geo', async (c) => {
   const rows = (await c.env.DB.prepare("SELECT key, value FROM settings WHERE key IN ('geo_ai_crawlers_enabled','geo_llms_enabled')").all()).results as any[]
   const map = new Map(rows.map((row) => [String(row.key), String(row.value || '')]))
   return c.html(renderGeoPage({
-    siteUrl: resolveSiteUrl(c),
+    siteUrl: await resolveSiteUrl(c),
     aiCrawlersEnabled: map.get('geo_ai_crawlers_enabled') !== '0',
     llmsEnabled: map.get('geo_llms_enabled') !== '0',
     saved: c.req.query('saved') === '1',
@@ -3453,7 +3453,7 @@ adminRoutes.get('/seo', async (c) => {
     FROM submit_logs ${clause}`).bind(...params).first() as any
   const logs = (await c.env.DB.prepare(`SELECT * FROM submit_logs ${clause} ORDER BY created_at DESC LIMIT 100`).bind(...params).all()).results
   return c.html(renderSeoPage({
-    siteUrl: resolveSiteUrl(c), recentLogs: logs as any,
+    siteUrl: await resolveSiteUrl(c), recentLogs: logs as any,
     successCount: Number(countRow?.success_count || 0), failureCount: Number(countRow?.failure_count || 0),
     engine, result, q, channels,
     notifyStarted: c.req.query('notify') === '1',
@@ -3472,7 +3472,7 @@ adminRoutes.post('/seo/logs/:id/retry', async (c) => {
   if (skipped) return c.redirect('/admin/seo?result=failure&q=' + encodeURIComponent(String(log.url || '')) + '&retry=skipped')
   const url = String(log.url || '').trim()
   if (!/^https?:\/\//i.test(url)) return c.redirect('/admin/seo?result=failure&retry=invalid')
-  const siteUrl = resolveSiteUrl(c)
+  const siteUrl = await resolveSiteUrl(c)
   c.executionCtx.waitUntil(submitAllEngines(c.env, [url], siteUrl).catch((e) => console.error('SEO log retry failed', { id, url, error: String(e) })))
   return c.redirect('/admin/seo?notify=1&notify_count=1&retry=1&q=' + encodeURIComponent(url))
 })
@@ -3485,7 +3485,7 @@ adminRoutes.post('/seo/logs/:id/delete', async (c) => {
 })
 
 adminRoutes.post('/seo/submit', async (c) => {
-  const siteUrl = resolveSiteUrl(c)
+  const siteUrl = await resolveSiteUrl(c)
   const urls = await getAllPublishedUrls(c.env, siteUrl)
   const unique = Array.from(new Set(urls))
   c.executionCtx.waitUntil(
@@ -3735,7 +3735,7 @@ adminRoutes.get('/system', async (c) => {
     })
   }
 
-  const siteUrl = resolveSiteUrl(c)
+  const siteUrl = await resolveSiteUrl(c)
   const siteUrlIsFallback = !env.SITE_URL || env.SITE_URL === 'https://your-domain.com'
   checks.push({
     label: '站点地址 (SITE_URL)',
