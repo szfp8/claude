@@ -49,7 +49,11 @@ import {
 
 export const adminRoutes = new Hono<{ Bindings: Bindings }>()
 
-async function passwordFingerprintForSession(passwordHash: string): Promise<string> {\n  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(passwordHash))\n  return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, '0')).join('')\n}\n
+async function passwordFingerprintForSession(passwordHash: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(passwordHash))
+  return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, '0')).join('')
+}
+
 // ---------- 首次部署初始化管理员账号（无需鉴权，仅当还没有任何管理员时可用）----------
 // 配置了 SETUP_TOKEN 时，创建首个管理员必须携带该令牌，避免部署后被陌生人抢先初始化。
 const setupPage = (c: { env: Bindings }, error?: string) => renderSetupPage(error, { requireToken: !!c.env.SETUP_TOKEN })
