@@ -1987,6 +1987,9 @@ export function renderSettingsPage(settings: Record<string, string>, error = '',
       <p style="margin:0 0 12px;color:var(--muted);font-size:12px;line-height:1.7">首次部署保持白标空站点。站点名称、行业名称、服务、行业关键词和新闻分类都由这里统一定义；AI、SEO、GEO 和前台页面共用这份站点画像。</p>
       <label>前台站点名称（全站统一）</label>
       <input name="site_name" maxlength="80" value="${escapeHtml(settings.site_name || '')}" placeholder="例如：你的品牌名称" />
+      <label>公开站点地址（可选）</label>
+      <input name="site_url" maxlength="500" value="${escapeHtml(settings.site_url || '')}" placeholder="例如：https://www.example.com" inputmode="url" />
+      <p style="margin:-6px 0 10px;color:var(--muted);font-size:12px;line-height:1.7">用于 Sitemap、Robots、llms.txt、AI Index 等绝对链接。留空会自动使用当前访问域名；不需要在 Cloudflare 变量里填写 SITE_URL。</p>
       <label>网站核心主题</label>
       <input name="site_topic" maxlength="120" value="${escapeHtml(settings.site_topic || '')}" placeholder="例如：本地服务解决方案" />
       <label>网站行业</label>
