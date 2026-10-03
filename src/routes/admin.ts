@@ -347,9 +347,13 @@ adminRoutes.post('/articles/image-upload-page', async (c) => {
   const body = await c.req.parseBody()
   const file = body.file instanceof File ? body.file : null
   if (!file || !file.name) return c.html('<h3>请选择图片</h3><p><a href="javascript:history.back()">返回</a></p>', 400)
-  if (file.size > 5 * 1024 * 1024) return c.html('<h3>图片超过 5MB</h3><p><a href="javascript:history.back()">返回</a></p>', 400)
-  if (!/^image\/(jpeg|png|webp|gif)$/.test(file.type)) return c.html('<h3>仅支持 JPG、PNG、WEBP、GIF</h3><p><a href="javascript:history.back()">返回</a></p>', 400)
-  const ext = file.type === 'image/jpeg' ? 'jpg' : file.type.split('/')[1]
+  let actualType: string
+  try {
+    actualType = await validateImageFile(file, true)
+  } catch (e) {
+    return c.html('<h3>' + escapeHtml(String((e as any)?.message || '图片格式无效')) + '</h3><p><a href="javascript:history.back()">返回</a></p>', 400)
+  }
+  const ext = actualType === 'image/jpeg' ? 'jpg' : actualType.split('/')[1]
   const objectKey = 'media/articles/' + crypto.randomUUID() + '.' + ext
   const object = await c.env.R2_MEDIA.put(objectKey, file.stream(), {
     httpMetadata: { contentType: actualType, contentDisposition: 'inline' },
