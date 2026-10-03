@@ -61,8 +61,8 @@ szfp8/claude
 
 | 变量 | 首次部署 | 后台配置 |
 |---|---|---|
-| `JWT_SECRET` | 可选 | 不需要；留空时由 `CACHE_KV` 自动生成 |
-| `PBKDF2_ITERATIONS` | 可选 | 不需要；留空使用默认值 |
+| `JWT_SECRET` | 可选 | 不需要；留空时由 `CACHE_KV` 自动生成 256-bit 会话密钥 |
+| `SITE_URL` | 可选 | 不需要；后台「系统设置 → 公开站点地址」可填写固定主域名，留空自动使用当前访问域名 |\n| `PBKDF2_ITERATIONS` | 可选 | 不需要；留空使用默认值 |
 | `INDEXNOW_KEY` | 不需要 | 系统设置 |
 | `EXTERNAL_AI_API_KEY` | 不需要 | AI 设置；只使用外部 AI 时填写 |
 | `RESEND_API_KEY` | 不需要 | 系统设置；启用邮件回复时填写 |
@@ -145,3 +145,10 @@ missing_tables=[]
 
 完成初始化。
 
+
+
+## 4.1 JWT 与 SITE_URL
+
+`JWT_SECRET` 不需要阻塞首次部署。登录会话密钥在 `CACHE_KV` 可用时会自动生成并持久化；只有 KV 不可用时才要求配置 Cloudflare Secret `JWT_SECRET`。
+
+`SITE_URL` 也不是首次部署必填变量。后台「系统设置 → 公开站点地址」可以保存固定公开域名；如果后台未填写，系统自动使用当前请求域名生成 Sitemap、Robots、llms.txt 和 AI Index。Cloudflare `SITE_URL` 仅作为兼容旧部署的可选兜底。
