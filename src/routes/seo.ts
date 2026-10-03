@@ -8,7 +8,7 @@ import { getActiveContactChannels } from '../modules/contactChannels/accessors'
 export const seoRoutes = new Hono<{ Bindings: Bindings }>()
 
 seoRoutes.get('/sitemap.xml', async (c) => {
-  const entries = await getSitemapEntries(c.env, resolveSiteUrl(c))
+  const entries = await getSitemapEntries(c.env, await resolveSiteUrl(c))
   const escapeXml = (value: string) => String(value).replace(/[&<>"']/g, (ch) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;',
   } as Record<string, string>)[ch])
@@ -36,7 +36,7 @@ seoRoutes.get('/sitemap.xml', async (c) => {
 // 明确写出来，一是防止未来有人在这个文件上随手加 Disallow 时不小心挡住AI爬虫，
 // 二是这些爬虫各家的行为准则里通常建议"网站主动声明允许"，写清楚更保险。
 seoRoutes.get('/robots.txt', async (c) => {
-  const siteUrl = resolveSiteUrl(c)
+  const siteUrl = await resolveSiteUrl(c)
   let allowAiCrawlers = true
   try {
     const geoRows = (await c.env.DB.prepare("SELECT key, value FROM settings WHERE key='geo_ai_crawlers_enabled'").all()).results as any[]
@@ -134,7 +134,7 @@ Disallow: /search
 // （参考 https://llmstxt.org），把网站是干嘛的、有哪些板块、链接是什么，
 // 用干净的 Markdown 列出来，比让 AI 自己爬全站再总结更容易被准确引用。
 seoRoutes.get('/ai-index.json', async (c) => {
-  const siteUrl = resolveSiteUrl(c)
+  const siteUrl = await resolveSiteUrl(c)
   const rows = (await c.env.DB.prepare("SELECT key, value FROM settings WHERE key IN ('site_name','site_description','site_topic','site_industry','primary_services','primary_keywords','industry_keywords','site_keywords','news_categories')").all()).results as any[]
   const settings: Record<string, string> = {}
   for (const row of rows) settings[String(row.key || '')] = String(row.value || '')
@@ -190,7 +190,7 @@ seoRoutes.get('/llms.txt', async (c) => {
   const env = c.env
   const llmsEnabled = String((await env.DB.prepare("SELECT value FROM settings WHERE key='geo_llms_enabled'").first() as any)?.value || '1') !== '0'
   if (!llmsEnabled) return c.notFound()
-  const siteUrl = resolveSiteUrl(c)
+  const siteUrl = await resolveSiteUrl(c)
   const settingsRows = (await env.DB.prepare('SELECT key, value FROM settings').all()).results as any[]
   const settingsMap: Record<string, string> = {}
   for (const row of settingsRows) settingsMap[String(row.key || '')] = String(row.value || '')
