@@ -548,14 +548,22 @@ export function renderLoginPage(error?: string): string {
 </body></html>`
 }
 
-export function renderRecoverPage(error?: string): string {
+export function renderRecoverPage(
+  error?: string,
+  options: { requireToken?: boolean } = {},
+): string {
+  const requireToken = !!options.requireToken
+  const tokenHelp = requireToken
+    ? '当前 Worker 已配置 <strong>SETUP_TOKEN</strong>。请输入该 Secret 的当前值。'
+    : '当前 Worker 尚未配置 <strong>SETUP_TOKEN</strong>。如果首次部署时没有配置过它，不存在可“找回”的旧令牌；请先到 Cloudflare → Worker → Settings → Variables and Secrets 新建一个名为 <strong>SETUP_TOKEN</strong> 的 Secret 并设置一个新的随机值，然后再回来恢复管理员。'
   return `<!DOCTYPE html>
 <html lang="zh-CN"><head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" /><title>恢复管理员账号</title>
 <link rel="stylesheet" href="/styles.css" /></head>
 <body class="auth-page">
 <form method="post" action="/admin/recover" class="card auth-card">
   <h2>恢复唯一管理员</h2>
-  <p style="color:var(--muted);font-size:13px;line-height:1.7">仅用于忘记后台密码。需要首次部署时保存的 Cloudflare Secret：<strong>SETUP_TOKEN</strong>。恢复后原密码立即失效。</p>
+  <p style="color:var(--muted);font-size:13px;line-height:1.7">仅用于忘记后台密码。<strong>SETUP_TOKEN</strong> 是管理员恢复密钥，不会由系统回显或保存到 D1；恢复后原密码立即失效。</p>
+  <p style="color:${requireToken ? 'var(--muted)' : '#b45309'};font-size:12px;line-height:1.7">${tokenHelp}</p>
   ${error ? `<p style="color:#e5484d;font-size:13px">${escapeHtml(error)}</p>` : ''}
   <input name="setup_token" type="password" autocomplete="off" placeholder="SETUP_TOKEN" required />
   <input name="email" type="email" autocomplete="username" placeholder="新的管理员邮箱" required />
