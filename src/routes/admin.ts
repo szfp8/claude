@@ -34,7 +34,7 @@ import { getImageStore, saveImageStore } from '../utils/imageSettings'
 import { getProtectedSecret, hasProtectedSecret, saveProtectedSecret } from '../utils/protectedSecrets'
 import { generateAiKeywords } from '../utils/aiKeywords'
 import { analyzeNewsSource, publishAnalyzedNewsCandidate, runNewsCollection } from '../cron/newsCollector'
-import { uploadPageImage, deletePageImage, removeImage } from '../utils/pageImages'
+import { uploadPageImage, validateImageFile, deletePageImage, removeImage } from '../utils/pageImages'
 import { getTodayViews, getRecentViewTrend } from '../utils/stats'
 import { deleteR2PrefixBatch, removePageContact, removeImageStoreGroup, deleteArticleD1Relations } from '../utils/resourceCleanup'
 import { SUBPROJECT_SECTIONS, normalizeSubprojectLayout, normalizeSubprojectSlug, parseSubprojectItems, subprojectPagePath } from '../utils/subprojects'
@@ -49,6 +49,7 @@ import {
 
 export const adminRoutes = new Hono<{ Bindings: Bindings }>()
 
+async function passwordFingerprintForSession(passwordHash: string): Promise<string> {\n  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(passwordHash))\n  return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, '0')).join('')\n}\n
 // ---------- 首次部署初始化管理员账号（无需鉴权，仅当还没有任何管理员时可用）----------
 // 配置了 SETUP_TOKEN 时，创建首个管理员必须携带该令牌，避免部署后被陌生人抢先初始化。
 const setupPage = (c: { env: Bindings }, error?: string) => renderSetupPage(error, { requireToken: !!c.env.SETUP_TOKEN })
@@ -209,7 +210,7 @@ adminRoutes.post('/login', async (c) => {
     console.error('JWT secret initialization failed', e)
     return c.html(renderLoginPage('登录密钥尚未初始化，请确认 CACHE_KV 已绑定，或设置 JWT_SECRET'))
   }
-  const token = await signToken({ uid: (user as any).id, email }, jwtSecret)
+  const token = await signToken({ uid: (user as any).id, email, pwd: await passwordFingerprintForSession(String(user.password_hash || '')) }, jwtSecret)
   c.header('Set-Cookie', `admin_session=${token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=604800`)
   return c.redirect('/admin')
 })
@@ -351,11 +352,11 @@ adminRoutes.post('/articles/image-upload-page', async (c) => {
   const ext = file.type === 'image/jpeg' ? 'jpg' : file.type.split('/')[1]
   const objectKey = 'media/articles/' + crypto.randomUUID() + '.' + ext
   const object = await c.env.R2_MEDIA.put(objectKey, file.stream(), {
-    httpMetadata: { contentType: file.type, contentDisposition: 'inline' },
+    httpMetadata: { contentType: actualType, contentDisposition: 'inline' },
     customMetadata: { purpose: 'article-image', originalName: file.name },
   })
   await c.env.DB.prepare('INSERT INTO media_assets (object_key, original_name, content_type, size, etag) VALUES (?, ?, ?, ?, ?)')
-    .bind(objectKey, file.name, file.type, file.size, object?.etag || null).run()
+    .bind(objectKey, file.name, actualType, file.size, object?.etag || null).run()
   const url = '/media/' + objectKey.slice('media/'.length)
   const snippet = '<p><img src="' + url + '" alt="' + escapeHtml(file.name.replace(/\.[^.]+$/, '').slice(0, 120)) + '" /></p>'
   return c.html('<main style="font:16px system-ui;max-width:760px;margin:40px auto;padding:20px"><h2>图片上传成功</h2><p>图片地址：</p><input style="width:100%;padding:10px" value="' + escapeHtml(url) + '" readonly onclick="this.select()" /><p>正文配图 HTML：</p><textarea style="width:100%;height:100px" onclick="this.select()">' + escapeHtml(snippet) + '</textarea><p><button onclick="navigator.clipboard.writeText(document.querySelector(\'input\').value)">复制图片地址</button> <button onclick="navigator.clipboard.writeText(document.querySelector(\'textarea\').value)">复制配图HTML</button></p><p><a href="javascript:history.back()">返回文章编辑</a>　<a href="/admin/media">打开媒体库</a></p></main>')

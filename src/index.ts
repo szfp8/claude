@@ -197,7 +197,6 @@ function clearAdminSessionCookie(c: any) {
   return c.redirect('/admin/login')
 }
 // Prefer app-level logout so POST works even if nested route only had GET.
-app.get('/admin/logout', clearAdminSessionCookie)
 app.post('/admin/logout', clearAdminSessionCookie)
 
 // Progressive enhancement: convert GET logout anchors to POST on click (admin HTML only).
