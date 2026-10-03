@@ -53,10 +53,11 @@ Cloudflare Access= 关闭
 首次部署 Secret：
 
 ```text
-无需填写任何 Secret
+最低要求：无需填写任何 Secret
+建议：首次部署后立即在 Worker → Settings → Variables and Secrets 配置 SETUP_TOKEN
 ```
 
-首次部署完成后直接打开 `/admin/setup` 创建唯一管理员。`SETUP_TOKEN` 仅在需要额外保护初始化或密码恢复时配置。
+首次部署完成后应立即打开 `/admin/setup` 创建唯一管理员。`SETUP_TOKEN` 不是首次部署必填；但如果不配置，公开的 `/admin/setup` 在你完成初始化前没有额外令牌保护，因此不要把初始化页面长时间暴露着。**建议第一次部署后立即在 Cloudflare Secret 配置一个随机 `SETUP_TOKEN`，并把它保存到密码管理器。**
 
 可选兼容 Secret（首次部署不需要）：
 
