@@ -199,10 +199,12 @@ adminRoutes.post('/login', async (c) => {
   }
   await clearLoginFailures(c.env.CACHE_KV, email, ip)
   // 旧版本哈希 / 迭代次数低于当前目标时，首次登录成功后立即升级为当前哈希。
+  let sessionPasswordHash = String(user.password_hash || '')
   if (passwordCheck.needsUpgrade) {
     try {
       const upgradedHash = await hashPassword(password, targetIterations)
       await c.env.DB.prepare('UPDATE admin_users SET password_hash=? WHERE id=?').bind(upgradedHash, user.id).run()
+      sessionPasswordHash = upgradedHash
     } catch (e) {
       console.warn('admin password hash upgrade failed', e)
     }
@@ -214,7 +216,7 @@ adminRoutes.post('/login', async (c) => {
     console.error('JWT secret initialization failed', e)
     return c.html(renderLoginPage('登录密钥尚未初始化，请确认 CACHE_KV 已绑定，或设置 JWT_SECRET'))
   }
-  const token = await signToken({ uid: (user as any).id, email, pwd: await passwordFingerprintForSession(String(user.password_hash || '')) }, jwtSecret)
+  const token = await signToken({ uid: (user as any).id, email, pwd: await passwordFingerprintForSession(sessionPasswordHash) }, jwtSecret)
   c.header('Set-Cookie', `admin_session=${token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=604800`)
   return c.redirect('/admin')
 })
