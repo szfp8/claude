@@ -3,11 +3,18 @@ import type { Bindings } from '../types'
 
 const PLACEHOLDER = 'https://your-domain.com'
 
-// 一键部署场景下用户很可能没改 wrangler.toml 里的 SITE_URL 占位值，
-// 这里在有请求上下文时按当前访问的域名自动兜底，保证 sitemap/canonical 等链接不会指向错误地址。
-// 后续绑定自定义域名后，仍可通过修改 SITE_URL 变量强制指定。
-export function resolveSiteUrl(c: Context): string {
-  const configured = c.env.SITE_URL
+// SITE_URL 是可选的公开站点地址覆盖项，不是 Secret。
+// 优先级：后台「系统设置」site_url → Cloudflare SITE_URL 兼容变量 → 当前请求 origin。
+// 因此首次部署、绑定 workers.dev 或自定义域名时都不要求预填 SITE_URL。
+export async function resolveSiteUrl(c: Context): Promise<string> {
+  let configured = ''
+  try {
+    const row = await c.env.DB.prepare("SELECT value FROM settings WHERE key='site_url'").first() as any
+    configured = String(row?.value || '').trim()
+  } catch {
+    // D1 不可用时继续使用环境变量/请求 origin 兜底。
+  }
+  configured = configured || String(c.env.SITE_URL || '').trim()
   if (configured && configured !== PLACEHOLDER) return configured.replace(/\/$/, '')
   try {
     return new URL(c.req.url).origin
