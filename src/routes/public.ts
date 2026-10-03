@@ -93,7 +93,7 @@ publicRoutes.get('/lang/:code', (c) => {
 
 publicRoutes.get('/', async (c) => {
   const env = c.env
-  const siteUrl = resolveSiteUrl(c)
+  const siteUrl = await resolveSiteUrl(c)
   const locale = c.get('locale')
   c.executionCtx.waitUntil(trackPageView(env))
   const settingsPromise = getSettings(env)
@@ -136,7 +136,7 @@ publicRoutes.get('/', async (c) => {
 // ---- 服务列表 / 服务详情 ----
 publicRoutes.get('/service', async (c) => {
   const env = c.env
-  const siteUrl = resolveSiteUrl(c)
+  const siteUrl = await resolveSiteUrl(c)
   const locale = c.get('locale')
   c.executionCtx.waitUntil(trackPageView(env))
   const services = (await env.DB.prepare('SELECT id, name, slug, icon, summary FROM services WHERE is_active = 1 ORDER BY sort_order LIMIT 50').all()).results
@@ -165,7 +165,7 @@ publicRoutes.get('/service', async (c) => {
 
 publicRoutes.get('/service/topic/:slug', async (c) => {
   const env = c.env
-  const siteUrl = resolveSiteUrl(c)
+  const siteUrl = await resolveSiteUrl(c)
   const locale = c.get('locale')
   const slug = c.req.param('slug')
   const data = await getSubprojectWithItems(env, 'service', slug)
@@ -185,7 +185,7 @@ publicRoutes.get('/service/topic/:slug', async (c) => {
 
 publicRoutes.get('/service/:slug', async (c) => {
   const env = c.env
-  const siteUrl = resolveSiteUrl(c)
+  const siteUrl = await resolveSiteUrl(c)
   const locale = c.get('locale')
   c.executionCtx.waitUntil(trackPageView(env))
   const slug = c.req.param('slug')
@@ -232,7 +232,7 @@ publicRoutes.get('/service/:slug', async (c) => {
 // ---- 城市列表 ----
 publicRoutes.get('/city', async (c) => {
   const env = c.env
-  const siteUrl = resolveSiteUrl(c)
+  const siteUrl = await resolveSiteUrl(c)
   const locale = c.get('locale')
   c.executionCtx.waitUntil(trackPageView(env))
   const cities = (await env.DB.prepare('SELECT id, name, slug, province, is_active, sort_order, seo_title, seo_description, seo_keywords, tier FROM cities WHERE is_active = 1 ORDER BY sort_order LIMIT 200').all()).results
@@ -260,7 +260,7 @@ publicRoutes.get('/city', async (c) => {
 
 publicRoutes.get('/city/topic/:slug', async (c) => {
   const env = c.env
-  const siteUrl = resolveSiteUrl(c)
+  const siteUrl = await resolveSiteUrl(c)
   const locale = c.get('locale')
   const slug = c.req.param('slug')
   const data = await getSubprojectWithItems(env, 'city', slug)
@@ -280,7 +280,7 @@ publicRoutes.get('/city/topic/:slug', async (c) => {
 
 publicRoutes.get('/city/:slug', async (c) => {
   const env = c.env
-  const siteUrl = resolveSiteUrl(c)
+  const siteUrl = await resolveSiteUrl(c)
   const locale = c.get('locale')
   c.executionCtx.waitUntil(trackPageView(env))
   const slug = c.req.param('slug')
@@ -327,7 +327,7 @@ publicRoutes.get('/city/:slug', async (c) => {
 
 publicRoutes.get('/city/:citySlug/:serviceSlug', async (c) => {
   const env = c.env
-  const siteUrl = resolveSiteUrl(c)
+  const siteUrl = await resolveSiteUrl(c)
   const locale = c.get('locale')
   c.executionCtx.waitUntil(trackPageView(env))
   const { citySlug, serviceSlug } = c.req.param()
@@ -369,7 +369,7 @@ publicRoutes.get('/article/', (c) => c.redirect('/article', 301))
 
 publicRoutes.get('/article', async (c) => {
   const env = c.env
-  const siteUrl = resolveSiteUrl(c)
+  const siteUrl = await resolveSiteUrl(c)
   const locale = c.get('locale')
   c.executionCtx.waitUntil(trackPageView(env))
   const category = String(c.req.query('category') || '').trim().slice(0, 80)
@@ -410,7 +410,7 @@ publicRoutes.get('/article', async (c) => {
 
 publicRoutes.get('/article/tag/:slug', async (c) => {
   const env = c.env
-  const siteUrl = resolveSiteUrl(c)
+  const siteUrl = await resolveSiteUrl(c)
   const locale = c.get('locale')
   const slug = c.req.param('slug')
   const data = await getSubprojectWithItems(env, 'article', slug)
@@ -430,7 +430,7 @@ publicRoutes.get('/article/tag/:slug', async (c) => {
 
 publicRoutes.get('/new', async (c) => {
   const env = c.env
-  const siteUrl = resolveSiteUrl(c)
+  const siteUrl = await resolveSiteUrl(c)
   const locale = c.get('locale')
   const articles = (await env.DB.prepare("SELECT id, title, slug, summary, category, published_at FROM articles WHERE status='published' ORDER BY published_at DESC LIMIT 30").all()).results
   const settings = await getSettings(env)
@@ -452,7 +452,7 @@ publicRoutes.get('/new', async (c) => {
 
 publicRoutes.get('/new/:slug', async (c) => {
   const env = c.env
-  const siteUrl = resolveSiteUrl(c)
+  const siteUrl = await resolveSiteUrl(c)
   const locale = c.get('locale')
   const slug = c.req.param('slug')
   const data = await getSubprojectWithItems(env, 'new', slug)
@@ -472,7 +472,7 @@ publicRoutes.get('/new/:slug', async (c) => {
 
 publicRoutes.get('/article/:slugOrId', async (c) => {
   const env = c.env
-  const siteUrl = resolveSiteUrl(c)
+  const siteUrl = await resolveSiteUrl(c)
   const locale = c.get('locale')
   const slugOrId = String(c.req.param('slugOrId') || '').trim()
 
@@ -521,7 +521,7 @@ publicRoutes.get('/article/:slugOrId', async (c) => {
 // ---- 关于我们 ----
 publicRoutes.get('/about', async (c) => {
   const env = c.env
-  const siteUrl = resolveSiteUrl(c)
+  const siteUrl = await resolveSiteUrl(c)
   const locale = c.get('locale')
   const settings = await getSettings(env)
   const pageSettings = getPageSettings(settings)
@@ -545,7 +545,7 @@ publicRoutes.get('/about', async (c) => {
 // ---- 联系我们：前台表单 + D1 留言 ----
 publicRoutes.get('/contact', async (c) => {
   const env = c.env
-  const siteUrl = resolveSiteUrl(c)
+  const siteUrl = await resolveSiteUrl(c)
   const locale = c.get('locale')
   const settings = await getSettings(env)
   const pageSettings = getPageSettings(settings)
@@ -599,7 +599,7 @@ publicRoutes.post('/contact', rateLimit(8, 60, 'contact'), async (c) => {
 // ---- 搜索：同时匹配 服务 / 城市 / 资讯 ----
 publicRoutes.get('/search', async (c) => {
   const env = c.env
-  const siteUrl = resolveSiteUrl(c)
+  const siteUrl = await resolveSiteUrl(c)
   const locale = c.get('locale')
   const q = c.req.query('q') || ''
   const selectedCity = c.req.query('city') || ''
