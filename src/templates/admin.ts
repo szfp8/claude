@@ -413,62 +413,12 @@ export function renderSystemPage(checks: { label: string; ok: boolean; detail: s
     <h2>系统自检</h2>
     <p style="color:var(--muted);font-size:13px">默认只检查绑定是否存在；点击下面按钮才会执行一次真实的 KV / R2 / Workers AI 读写测试，避免反复刷新后台消耗资源。</p>
     <p><a class="btn" href="/admin/system?probe=1">执行完整检测（KV + R2 + AI）</a></p>
-    <div class="card" style="margin:16px 0;border-left:4px solid #ff9f1a">
-      <h3 style="margin-top:0">生产库 / D1 / R2 / KV 同步清理</h3>
-      <p style="color:var(--muted);font-size:13px;line-height:1.8">按模块删除生产数据和关联资源。D1 每次最多处理 25 条，R2 每次最多删除 25 个对象，KV 每次最多删除 25 个 key；浏览器自动继续。所有所选模块处理完后只执行一次 Worker 全局缓存失效，避免 Free 版 5 次/分钟的 purge 限流。KV 只清理本应用临时缓存和健康检查探针，<strong>不会删除管理员登录密钥</strong>。</p>
-      <div style="display:flex;gap:14px;flex-wrap:wrap;margin:12px 0">
-        <label><input type="checkbox" name="cleanup_scope" value="articles" /> 内容/文章</label>
-        <label><input type="checkbox" name="cleanup_scope" value="news" /> 新闻采集源 + AI新闻</label>
-        <label><input type="checkbox" name="cleanup_scope" value="cities" /> 城市</label>
-        <label><input type="checkbox" name="cleanup_scope" value="services" /> 服务项目</label>
-        <label><input type="checkbox" name="cleanup_scope" value="keywords" /> SEO关键词/落地页</label>
-        <label><input type="checkbox" name="cleanup_scope" value="r2" /> R2全部媒体资产</label>
-        <label><input type="checkbox" name="cleanup_scope" value="kv" /> KV临时缓存</label>
-        <label style="font-weight:700"><input type="checkbox" id="cleanupAllScope" /> 全站生产内容 + R2 + 临时KV</label>
-      </div>
-      <button class="btn" type="button" id="productionCleanupBtn">开始同步清理</button>
-      <span id="productionCleanupStatus" style="margin-left:10px;color:var(--muted);font-size:13px"></span>
+    <div class="card" style="margin:16px 0;border-left:4px solid #3b82f6">
+      <h3 style="margin-top:0">缓存与资源清理</h3>
+      <p style="color:var(--muted);font-size:13px;line-height:1.8">这里不提供“全站生产库一键清空”。D1、R2、KV 是独立资源，不能安全地做成一个原子同步删除动作。日常缓存失效由内容变更自动处理；文章、城市、服务和媒体文件应在各自管理页面按对象删除。</p>
+      <p style="color:var(--muted);font-size:13px;line-height:1.8"><strong>安全边界：</strong>删除文章会清理文章关联记录；删除城市/服务会清理对应关键词、AI 页面配置和专属 R2 图片；R2 媒体库支持逐文件删除。系统不会通过此页面删除管理员账号、基础设置、迁移记录或整个 D1。</p>
+      <p style="margin-bottom:0"><a class="btn secondary" href="/admin/media">打开 R2 媒体库</a> <a class="btn secondary" href="/admin/articles">管理文章</a> <a class="btn secondary" href="/admin/cities">管理城市</a> <a class="btn secondary" href="/admin/services">管理服务</a></p>
     </div>
-    <script>
-    (function(){
-      var btn=document.getElementById("productionCleanupBtn");
-      var status=document.getElementById("productionCleanupStatus");
-      var all=document.getElementById("cleanupAllScope");
-      if(!btn||!status||!all) return;
-      all.addEventListener("change",function(){
-        document.querySelectorAll('input[name="cleanup_scope"]').forEach(function(el){ el.checked=false; el.disabled=all.checked; });
-      });
-      async function runScope(scope){
-        var phase="d1", cursor="";
-        while(true){
-          var form=new URLSearchParams(); form.set("scope",scope); form.set("phase",phase); form.set("cursor",cursor);
-          var response=await fetch("/admin/production-cleanup",{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded;charset=UTF-8"},credentials:"same-origin",body:form.toString()});
-          var data=await response.json().catch(function(){ return {ok:false,error:"服务器返回无效JSON"}; });
-          if(!response.ok||!data.ok) throw new Error(data.error||"生产资源清理失败");
-          if(data.deleted&&typeof data.deleted==="object"){ status.textContent=scope+"：D1 已处理"; }
-          else if(data.deleted){ status.textContent=scope+"：已删除 "+data.deleted+" 项"; }
-          else { status.textContent=scope+"：正在清理…"; }
-          if(data.complete) return;
-          phase=data.nextPhase||phase;
-          cursor=data.nextCursor||"";
-        }
-      }
-      btn.addEventListener("click",async function(){
-        var scopes=[];
-        if(all.checked) scopes=["all"];
-        else document.querySelectorAll('input[name="cleanup_scope"]:checked').forEach(function(el){ scopes.push(el.value); });
-        if(!scopes.length){ status.textContent="请先选择清理范围"; return; }
-        if(!confirm(all.checked ? "确定清理全站生产内容、SEO关键词、城市、服务、新闻、R2媒体和临时KV缓存？管理员账号与站点基础配置会保留，删除不可恢复。" : "确定删除所选生产数据及关联资源？删除不可恢复。")) return;
-        btn.disabled=true; status.textContent="同步清理开始…";
-        try{
-          for(var i=0;i<scopes.length;i++){ await runScope(scopes[i]); }
-          await runScope("cache");
-          status.textContent="清理完成：D1 / R2 / KV 已同步处理，公开缓存已全部失效。";
-          setTimeout(function(){ location.reload(); },900);
-        }catch(err){ status.textContent="清理中断："+(err&&err.message?err.message:err); btn.disabled=false; }
-      });
-    })();
-    </script>
     <table>
       <thead><tr><th>检查项</th><th>状态</th><th>说明</th></tr></thead>
       <tbody>
