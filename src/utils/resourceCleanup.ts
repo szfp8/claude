@@ -64,3 +64,20 @@ export async function removePageContact(
   }
 }
 
+export async function removeImageStoreGroup(
+  env: Pick<Bindings, 'DB'>,
+  group: 'cities' | 'services',
+): Promise<void> {
+  const row = await env.DB.prepare("SELECT value FROM settings WHERE key='image_settings_json'").first() as any
+  if (!row?.value) return
+  try {
+    const store = JSON.parse(String(row.value))
+    if (!store || typeof store !== 'object') return
+    store[group] = {}
+    await env.DB.prepare(
+      "UPDATE settings SET value=? WHERE key='image_settings_json'",
+    ).bind(JSON.stringify(store)).run()
+  } catch (e) {
+    console.warn('image store cleanup skipped because JSON is invalid', e)
+  }
+}
