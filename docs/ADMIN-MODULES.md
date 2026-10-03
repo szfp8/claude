@@ -73,7 +73,7 @@
 
 ## 5. 白标复刻
 
-1. Fork / 一键 Deploy to Cloudflare
+1. 连接当前 GitHub 仓库到 Cloudflare Workers Builds（不要创建第二个 Fork/仓库）
 2. `/admin/setup` 创建管理员
 3. `/admin/settings` 填行业、主题词、联系方式
 4. `/admin/pages` 改六大页标签与标题
