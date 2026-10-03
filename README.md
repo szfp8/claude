@@ -8,7 +8,7 @@
 
 <a href="https://dash.cloudflare.com/?to=/:account/workers-and-pages/create" target="_blank"><img src="https://img.shields.io/badge/Cloudflare-Import%20existing%20GitHub%20repository-F38020?logo=cloudflare&logoColor=white" alt="Import existing GitHub repository to Cloudflare Workers" /></a>
 
-点击后进入 Cloudflare Workers & Pages 创建流程，选择 **Import a repository**，然后选择现有的 **`szfp8/claude`**。Cloudflare 官方当前的 Git 集成支持直接连接已有 GitHub 仓库，并在后续 push 时自动 Build + Deploy。citeturn0search0turn0search6
+点击后进入 Cloudflare Workers & Pages 创建流程，选择 **Import a repository**，然后选择现有的 **`szfp8/claude`**。Cloudflare 官方当前的 Git 集成支持直接连接已有 GitHub 仓库，并在后续 push 时自动 Build + Deploy。
 
 **这是本项目推荐的“一键入口”**，因为它保持：
 
@@ -25,7 +25,7 @@
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https%3A%2F%2Fgithub.com%2Fszfp8%2Fclaude)
 
-**重要区别：这个官方按钮不是本项目生产环境的首选入口。** Cloudflare 官方说明，Deploy to Cloudflare 会把公开 Git 仓库克隆到部署者自己的 GitHub/GitLab 账号并创建新的仓库，然后为这个新仓库配置 Workers Builds。citeturn0search7turn0search4
+**重要区别：这个官方按钮不是本项目生产环境的首选入口。** Cloudflare 官方说明，Deploy to Cloudflare 会把公开 Git 仓库克隆到部署者自己的 GitHub/GitLab 账号并创建新的仓库，然后为这个新仓库配置 Workers Builds。
 
 因此：
 
@@ -483,7 +483,7 @@ name = "white-label-cms"
 ```text
 当前部署脚本**不再读取或覆盖** `WRANGLER_CI_OVERRIDE_NAME`、`CLOUDFLARE_WORKER_NAME`、`WORKER_NAME`。Worker 名称以 `wrangler.toml` 为准。
 
-Cloudflare 官方要求通过 Workers Builds 连接仓库时，Dashboard 中的 Worker 名称与 Wrangler 配置中的 `name` 保持一致，否则构建可能失败。citeturn0search0
+Cloudflare 官方要求通过 Workers Builds 连接仓库时，Dashboard 中的 Worker 名称与 Wrangler 配置中的 `name` 保持一致，否则构建可能失败。
 
 因此首次连接仓库时，请使用：
 
