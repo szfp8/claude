@@ -17,6 +17,8 @@ const requiredConfig = [
  ['KV binding', /\[\[kv_namespaces\]\][\s\S]*?binding\s*=\s*"CACHE_KV"/], ['R2 binding', /\[\[r2_buckets\]\][\s\S]*?binding\s*=\s*"R2_MEDIA"[\s\S]*?bucket_name\s*=\s*"white-label-cms-r2-media"/], ['Workers AI binding', /\[ai\][\s\S]*?binding\s*=\s*"AI"/],
 ]
 for (const [label,re] of requiredConfig) if (!re.test(wrangler)) { console.error(`Deployment check failed: missing ${label} in wrangler.toml`); process.exit(1) }
+const cronMatch = wrangler.match(/\[triggers\][\s\S]*?crons\s*=\s*\[\s*"([^"]+)"/)
+if (!cronMatch || cronMatch[1].trim().split(/\s+/).length !== 5) { console.error('Deployment check failed: Cloudflare Cron must use a five-field expression'); process.exit(1) }
 if (/database_id\s*=/.test(wrangler) && !/database_id\s*=\s*""/.test(wrangler)) { console.error('Deployment check failed: database_id must not be hardcoded'); process.exit(1) }
 if (/\[\[kv_namespaces\]\][\s\S]*?\bid\s*=\s*["'][^"']+["']/.test(wrangler)) { console.error('Deployment check failed: KV id must not be hardcoded'); process.exit(1) }
 if (/try-remote-migrate\.mjs/.test(wrangler)) { console.error('Deployment check failed: remote migration must not run from [build]'); process.exit(1) }
