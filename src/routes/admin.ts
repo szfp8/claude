@@ -4530,7 +4530,7 @@ adminRoutes.post('/settings', async (c) => {
   const updates: Record<string, string> = {}
 
   const textFields: Record<string, number> = {
-    site_name: 80, site_title: 200, site_description: 1000,
+    site_name: 80, site_url: 500, site_title: 200, site_description: 1000,
     site_topic: 120, site_industry: 80, primary_services: 1000,
     primary_keywords: 1200, industry_keywords: 1600, news_categories: 500,
     email_from: 200, email_reply_to: 200,
