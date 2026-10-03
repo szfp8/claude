@@ -128,7 +128,7 @@ adminRoutes.post('/setup', async (c) => {
   }
 
   const token = await signToken(
-    { uid: Number(created.id), email, role: 'admin' },
+    { uid: Number(created.id), email, role: 'admin', pwd: await passwordFingerprintForSession(hash) },
     jwtSecret,
   )
   c.header('Set-Cookie', `admin_session=${token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=604800`)
@@ -213,11 +213,6 @@ adminRoutes.post('/login', async (c) => {
   const token = await signToken({ uid: (user as any).id, email, pwd: await passwordFingerprintForSession(String(user.password_hash || '')) }, jwtSecret)
   c.header('Set-Cookie', `admin_session=${token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=604800`)
   return c.redirect('/admin')
-})
-
-adminRoutes.get('/logout', (c) => {
-  c.header('Set-Cookie', 'admin_session=; Path=/; Max-Age=0')
-  return c.redirect('/admin/login')
 })
 
 // ---------- 以下路由需要登录 ----------
