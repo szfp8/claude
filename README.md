@@ -130,6 +130,30 @@ D1 migrations → Worker → postdeploy check
 3. 如果 Worker 已发布但 postdeploy 失败，先访问 `/healthz?probe=1`，确认 `d1_schema` 和五个 bindings。
 4. 如果使用自定义域名、没有 workers.dev 地址，给 Workers Builds 设置 `DEPLOY_SMOKE_URL`，让同一套 postdeploy 检查继续做 HTTP 验收。
 5. **不要手工把 Build 改成远程 migration，也不要把 Deploy 改成 `npx wrangler deploy`**；否则会绕过仓库的统一部署闭环。
+## 一键部署的自动化边界
+
+首次部署时，仓库已经把下面流程串起来：
+
+1. Workers Builds 拉取当前 main；
+2. npm ci / npm run build 完成 TypeScript 构建；
+3. npm run deploy 先发布 Worker，让 Cloudflare/Wrangler 按 wrangler.toml 准备绑定资源；
+4. 自动执行 wrangler d1 migrations apply DB --remote；
+5. 再次发布最终 Worker；
+6. 自动运行 postdeploy:check；可用 workers.dev 或 DEPLOY_SMOKE_URL 时继续检查 /healthz?probe=1。
+
+### 首次部署不要求填写的变量
+
+- SETUP_TOKEN：可不填；部署后直接访问 /admin/setup 创建唯一管理员。若需要密码恢复，再到 Cloudflare Variables and Secrets 配置新的 SETUP_TOKEN。
+- JWT_SECRET：可不填；有 CACHE_KV 时会自动生成并持久化会话密钥。
+- INDEXNOW_KEY、EXTERNAL_AI_API_KEY、RESEND_API_KEY、GOOGLE_SERVICE_ACCOUNT_JSON：按功能需要，在后台或 Cloudflare Secret 中配置。
+- SITE_URL：可不填；后台「系统设置」可配置公开站点地址，留空时程序按当前访问域名兜底。
+
+### 不要把“资源清理”当成部署步骤
+
+/admin/system 只负责系统自检和安全的资源入口，不提供 D1/R2/KV 的全站一键清空。D1、R2、KV 是独立资源，不能安全地做成一个原子“同步删除”。
+
+日常删除请在对应模块操作：文章在「文章管理」、城市/服务在各自编辑页、文件在「R2 媒体库」。系统不会为了清理缓存而删除管理员账号、基础设置或 migration 记录。
+
 ## 1. Cloudflare「设置您的应用程序」
 
 | 项目 | 设置 |
