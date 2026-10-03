@@ -36,7 +36,7 @@ import { generateAiKeywords } from '../utils/aiKeywords'
 import { analyzeNewsSource, publishAnalyzedNewsCandidate, runNewsCollection } from '../cron/newsCollector'
 import { uploadPageImage, deletePageImage, removeImage } from '../utils/pageImages'
 import { getTodayViews, getRecentViewTrend } from '../utils/stats'
-import { clearKnownKvProbes, clearTransientKvBatch, deleteProductionD1Batch, deleteProductionSettingsBatch, deleteR2PrefixBatch, removePageContact, removeImageStoreGroup, deleteArticleD1Relations } from '../utils/resourceCleanup'
+import { deleteR2PrefixBatch, removePageContact, removeImageStoreGroup, deleteArticleD1Relations } from '../utils/resourceCleanup'
 import { SUBPROJECT_SECTIONS, normalizeSubprojectLayout, normalizeSubprojectSlug, parseSubprojectItems, subprojectPagePath } from '../utils/subprojects'
 import { renderLayout, escapeHtml } from '../templates/layout'
 import { renderArticlePage } from '../templates/public'
@@ -782,7 +782,7 @@ adminRoutes.get('/articles/:id/preview', async (c) => {
   const article = await c.env.DB.prepare('SELECT * FROM articles WHERE id = ?').bind(c.req.param('id')).first()
   if (!article) return c.notFound()
   const art = article as any
-  const siteUrl = resolveSiteUrl(c)
+  const siteUrl = await resolveSiteUrl(c)
   const banner = `<div class="container" style="max-width:820px;margin-top:16px">
     <p style="background:#fff7e6;color:#ad6800;border:1px solid #ffe7ba;border-radius:8px;padding:10px 14px;font-size:13px">
       🔍 预览模式 · 当前状态：${escapeStatus(art.status)}，此页面不会被搜索引擎收录，也不在公开导航中出现。
@@ -3663,197 +3663,6 @@ adminRoutes.post('/media/delete-selected', async (c) => {
   return c.redirect('/admin/media' + (deleted ? '' : '?error=' + encodeURIComponent('没有文件被删除，请重新加载媒体库后重试')))
 })
 
-// ---- 生产库资源清理：每次 HTTP 调用只处理一个小批次，浏览器连续调用，降低 1101/1102 风险 ----
-adminRoutes.post('/production-cleanup', async (c) => {
-  const body = await c.req.parseBody()
-  const scope = String(body.scope || '').trim()
-  const phase = String(body.phase || 'd1').trim()
-  const cursor = String(body.cursor || '').trim()
-  const allowed = new Set(['articles', 'news', 'cities', 'services', 'keywords', 'r2', 'kv', 'all', 'cache'])
-  if (!allowed.has(scope)) return c.json({ ok: false, error: '无效清理范围' }, 400)
-
-  try {
-    const result: Record<string, any> = { ok: true, scope, phase, deleted: 0, complete: true, nextPhase: 'done', nextCursor: '' }
-
-    if (scope === 'cache') {
-      result.cachePurged = await purgeCacheEverything(c.executionCtx)
-      result.complete = true
-    } else if (scope === 'all' && (phase === 'd1' || phase.startsWith('d1:'))) {
-      const table = phase === 'd1' ? 'social_posts' : phase.slice(3)
-      if (table === '__production_settings__') {
-        const settingsBatch = await deleteProductionSettingsBatch(c.env, 'ai_page', 25)
-        result.deleted = settingsBatch.deleted
-        result.complete = settingsBatch.complete
-        result.nextPhase = settingsBatch.complete ? 'generated-meta' : 'd1:__production_settings__'
-      } else if (table === '__generated_meta__') {
-        const settingsBatch = await deleteProductionSettingsBatch(c.env, 'generated_meta', 25)
-        result.deleted = settingsBatch.deleted
-        result.complete = settingsBatch.complete
-        result.nextPhase = settingsBatch.complete ? 'r2' : 'generated-meta'
-      } else {
-        const batch = await deleteProductionD1Batch(c.env, table, 25)
-        result.deleted = batch.deleted
-        if (batch.deleted > 0) {
-          result.complete = false
-          result.nextPhase = 'd1:' + batch.nextTable
-        } else if (batch.nextTable === '__production_settings__') {
-          result.complete = false
-          result.nextPhase = 'd1:__production_settings__'
-        } else {
-          result.complete = false
-          result.nextPhase = 'd1:' + batch.nextTable
-        }
-      }
-    } else if (scope === 'articles') {
-      const rows = (await c.env.DB.prepare('SELECT id FROM articles ORDER BY id LIMIT 10').all()).results as any[]
-      if (rows.length) {
-        const ids = rows.map((row) => Number(row.id)).filter((id) => Number.isFinite(id))
-        const placeholders = ids.map(() => '?').join(',')
-        await c.env.DB.batch([
-          c.env.DB.prepare(`DELETE FROM social_posts WHERE article_id IN (${placeholders})`).bind(...ids),
-          c.env.DB.prepare(`DELETE FROM review_logs WHERE article_id IN (${placeholders})`).bind(...ids),
-          c.env.DB.prepare(`DELETE FROM articles WHERE id IN (${placeholders})`).bind(...ids),
-        ])
-        await removePageContact(c.env, ids.map((id) => 'article:' + id))
-        result.deleted = rows.length
-        result.complete = rows.length < 10
-      }
-    } else if (scope === 'news') {
-      if (phase === 'd1') {
-        const rows = (await c.env.DB.prepare("SELECT id FROM articles WHERE ai_generated=1 ORDER BY id LIMIT 10").all()).results as any[]
-        if (rows.length) {
-          const ids = rows.map((row) => Number(row.id)).filter((id) => Number.isFinite(id))
-          const placeholders = ids.map(() => '?').join(',')
-          await c.env.DB.batch([
-            c.env.DB.prepare(`DELETE FROM social_posts WHERE article_id IN (${placeholders})`).bind(...ids),
-            c.env.DB.prepare(`DELETE FROM review_logs WHERE article_id IN (${placeholders})`).bind(...ids),
-            c.env.DB.prepare(`DELETE FROM articles WHERE id IN (${placeholders})`).bind(...ids),
-          ])
-          await removePageContact(c.env, ids.map((id) => 'article:' + id))
-          result.deleted = rows.length
-          result.complete = false
-          result.nextPhase = 'd1'
-        } else {
-          result.complete = false
-          result.nextPhase = 'meta'
-        }
-      } else if (phase === 'meta') {
-        await c.env.DB.batch([
-          c.env.DB.prepare('DELETE FROM collection_logs'),
-          c.env.DB.prepare('DELETE FROM news_sources'),
-        ])
-        result.complete = true
-      }
-    } else if (scope === 'cities') {
-      if (phase === 'd1') {
-        const rows = (await c.env.DB.prepare('SELECT id, slug FROM cities ORDER BY id LIMIT 10').all()).results as any[]
-        if (rows.length) {
-          const ids = rows.map((row) => Number(row.id)).filter((id) => Number.isFinite(id))
-          const slugs = rows.map((row) => String(row.slug || '').trim()).filter(Boolean)
-          const placeholders = ids.map(() => '?').join(',')
-          await c.env.DB.batch([
-            c.env.DB.prepare(`DELETE FROM social_posts WHERE article_id IN (SELECT id FROM articles WHERE city_id IN (${placeholders}) AND ai_generated=1)`).bind(...ids),
-            c.env.DB.prepare(`DELETE FROM review_logs WHERE article_id IN (SELECT id FROM articles WHERE city_id IN (${placeholders}) AND ai_generated=1)`).bind(...ids),
-            c.env.DB.prepare(`DELETE FROM articles WHERE city_id IN (${placeholders}) AND ai_generated=1`).bind(...ids),
-            c.env.DB.prepare(`UPDATE articles SET city_id=NULL WHERE city_id IN (${placeholders})`).bind(...ids),
-            c.env.DB.prepare(`DELETE FROM keywords WHERE city_id IN (${placeholders})`).bind(...ids),
-            c.env.DB.prepare(`DELETE FROM cities WHERE id IN (${placeholders})`).bind(...ids),
-            c.env.DB.prepare(`DELETE FROM settings WHERE key IN (${slugs.map(() => '?').join(',')})`).bind(...slugs.map((slug) => aiContentSettingKey('cities', slug))),
-          ])
-          await removePageContact(c.env, slugs.map((slug) => 'city:' + slug))
-          result.deleted = rows.length
-          result.complete = false
-          result.nextPhase = 'd1'
-        } else {
-          await removeImageStoreGroup(c.env, 'cities')
-          result.complete = false
-          result.nextPhase = 'r2'
-        }
-      } else if (phase === 'r2') {
-        const batch = await deleteR2PrefixBatch(c.env, 'media/pages/city/', cursor, 25)
-        result.deleted = batch.deleted
-        result.complete = batch.complete
-        result.nextPhase = batch.complete ? 'done' : 'r2'
-        result.nextCursor = batch.nextCursor
-      }
-    } else if (scope === 'services') {
-      if (phase === 'd1') {
-        const rows = (await c.env.DB.prepare('SELECT id, slug FROM services ORDER BY id LIMIT 10').all()).results as any[]
-        if (rows.length) {
-          const ids = rows.map((row) => Number(row.id)).filter((id) => Number.isFinite(id))
-          const slugs = rows.map((row) => String(row.slug || '').trim()).filter(Boolean)
-          const placeholders = ids.map(() => '?').join(',')
-          await c.env.DB.batch([
-            c.env.DB.prepare(`DELETE FROM keywords WHERE service_id IN (${placeholders})`).bind(...ids),
-            c.env.DB.prepare(`DELETE FROM services WHERE id IN (${placeholders})`).bind(...ids),
-            c.env.DB.prepare(`DELETE FROM settings WHERE key IN (${slugs.map(() => '?').join(',')})`).bind(...slugs.map((slug) => aiContentSettingKey('services', slug))),
-          ])
-          await removePageContact(c.env, slugs.map((slug) => 'service:' + slug))
-          result.deleted = rows.length
-          result.complete = false
-          result.nextPhase = 'd1'
-        } else {
-          await removeImageStoreGroup(c.env, 'services')
-          await c.env.DB.prepare("DELETE FROM settings WHERE key='service_external_links'").run()
-          result.complete = false
-          result.nextPhase = 'r2'
-        }
-      } else if (phase === 'r2') {
-        const batch = await deleteR2PrefixBatch(c.env, 'media/pages/service/', cursor, 25)
-        result.deleted = batch.deleted
-        result.complete = batch.complete
-        result.nextPhase = batch.complete ? 'done' : 'r2'
-        result.nextCursor = batch.nextCursor
-      }
-    } else if (scope === 'keywords') {
-      if (phase === 'd1') {
-        const resultBatch = await deleteProductionD1Batch(c.env, 'keywords', 25)
-        result.deleted = resultBatch.deleted
-        result.complete = resultBatch.deleted === 0
-        result.nextPhase = result.complete ? 'landing-meta' : 'd1:keywords'
-      } else if (phase === 'landing-meta') {
-        const settingsBatch = await deleteProductionSettingsBatch(c.env, 'ai_page', 25)
-        result.deleted = settingsBatch.deleted
-        result.complete = settingsBatch.complete
-        result.nextPhase = settingsBatch.complete ? 'done' : 'landing-meta'
-      }
-    } else if (scope === 'r2') {
-      if (phase === 'd1') {
-        await c.env.DB.batch([
-          c.env.DB.prepare('DELETE FROM media_assets'),
-          c.env.DB.prepare("DELETE FROM settings WHERE key IN ('image_settings_json','contact_qr_url')"),
-        ])
-        result.complete = false
-        result.nextPhase = 'r2'
-      } else {
-        const batch = await deleteR2PrefixBatch(c.env, 'media/', cursor, 25)
-        result.deleted = batch.deleted
-        result.complete = batch.complete
-        result.nextPhase = batch.complete ? 'done' : 'r2'
-        result.nextCursor = batch.nextCursor
-      }
-    } else if (scope === 'kv') {
-      if (phase === 'd1') result.deleted = await clearKnownKvProbes(c.env)
-      const batch = await clearTransientKvBatch(c.env, phase === 'kv' ? cursor : '', 25)
-      result.deleted += batch.deleted
-      result.complete = batch.complete
-      result.nextPhase = batch.complete ? 'done' : 'kv'
-      result.nextCursor = batch.nextCursor
-    } else {
-      return c.json({ ok: false, error: '无效清理阶段' }, 400)
-    }
-
-    c.header('Cache-Control', 'no-store')
-    c.header('Cloudflare-CDN-Cache-Control', 'no-store')
-    return c.json(result)
-  } catch (e) {
-    console.error('production cleanup failed', { scope, phase, cursor, error: e })
-    c.header('Cache-Control', 'no-store')
-    return c.json({ ok: false, error: errorMessage(e, '生产资源清理失败') }, 500)
-  }
-})
-
-
 // ---- 系统自检：不用命令行/日志，直接在网页上确认各项绑定和配置是否正常 ----
 adminRoutes.get('/system', async (c) => {
   const env = c.env
@@ -4547,7 +4356,7 @@ adminRoutes.post('/settings', async (c) => {
       try {
         const parsed = new URL(siteUrl)
         if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password) throw new Error('invalid')
-        updates.site_url = parsed.origin + parsed.pathname.replace(/\\/$/, '') + parsed.search + parsed.hash
+        updates.site_url = parsed.origin + parsed.pathname.replace(/\/$/, '') + parsed.search + parsed.hash
       } catch {
         return c.redirect('/admin/settings?error=' + encodeURIComponent('公开站点地址必须是完整的 http:// 或 https:// 地址。'))
       }
