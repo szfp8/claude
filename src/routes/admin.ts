@@ -136,14 +136,14 @@ adminRoutes.post('/setup', async (c) => {
 
 // ---------- 登录 / 登出（无需鉴权）----------
 adminRoutes.get('/recover', async (c) => {
-  return c.html(renderRecoverPage(c.req.query('error') || ''))
+  return c.html(renderRecoverPage(c.req.query('error') || '', { requireToken: !!c.env.SETUP_TOKEN }))
 })
 
 adminRoutes.post('/recover', async (c) => {
   const b = await c.req.parseBody()
   const setupToken = String(b.setup_token || '').trim()
   if (!c.env.SETUP_TOKEN || !setupToken || !timingSafeEqual(setupToken, c.env.SETUP_TOKEN)) {
-    return c.html(renderRecoverPage('恢复令牌不正确。请使用首次部署时设置的 Cloudflare Secret：SETUP_TOKEN。'), 403)
+    return c.html(renderRecoverPage('恢复令牌不正确。请使用 Cloudflare 当前配置的 SETUP_TOKEN。', { requireToken: !!c.env.SETUP_TOKEN }), 403)
   }
   const email = String(b.email || '').trim().toLowerCase()
   const password = String(b.password || '')
@@ -4312,7 +4312,26 @@ adminRoutes.post('/ai-prompts/reset', async (c) => {
 
 adminRoutes.post('/settings/generate-industry-keywords', async (c) => {
   try {
-    const settings = await readSettingsMap(c.env)
+    const b = await c.req.parseBody()
+    const savedSettings = await readSettingsMap(c.env)
+    // 该按钮位于“白标行业/站点画像”表单内。优先使用本次表单提交的值，
+    // 这样用户刚填写行业/主题/服务但尚未单独点击“保存”时，AI 也能基于最新输入生成关键词。
+    const settings = {
+      ...savedSettings,
+      site_name: String(b.site_name || savedSettings.site_name || '').trim(),
+      site_topic: String(b.site_topic || savedSettings.site_topic || '').trim(),
+      site_industry: String(b.site_industry || savedSettings.site_industry || '').trim(),
+      primary_services: String(b.primary_services || savedSettings.primary_services || '').trim(),
+      primary_keywords: String(b.primary_keywords || savedSettings.primary_keywords || '').trim(),
+      industry_keywords: String(b.industry_keywords || savedSettings.industry_keywords || '').trim(),
+      news_categories: String(b.news_categories || savedSettings.news_categories || '').trim(),
+    }
+    // AI 生成依赖行业画像；本次表单输入也应同步保存，避免生成结果建立在未持久化的画像上。
+    const profileKeys = ['site_name','site_topic','site_industry','primary_services','primary_keywords','industry_keywords','news_categories']
+    await c.env.DB.batch(profileKeys.map((key) =>
+      c.env.DB.prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value")
+        .bind(key, String((settings as Record<string, string>)[key] || '')),
+    ))
     const aiSettings = await getAiSettings(c.env)
     if (!aiSettings.enabled) return c.redirect('/admin/settings?error=' + encodeURIComponent('AI 功能当前已停用，请先在 AI 设置中启用。'))
     const promptSettings = await getAiPromptSettings(c.env)
