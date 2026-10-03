@@ -28,7 +28,7 @@
     "validate:complete": "npm run doctor && npm run verify && npm run check:routes && npm run check:public && npm run check:seo-geo && npm run check:deployment && npm run check:migrations && npm run check:whitelabel && npm run check:contact-fields && npm run typecheck && npm test"
   },
   "dependencies": {
-    "hono": "4.13.8"
+    "hono": "4.13.11"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "5.20260922.1",
