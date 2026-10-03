@@ -133,6 +133,10 @@
   },
   {
     "method": "GET",
+    "path": "/social/settings"
+  },
+  {
+    "method": "GET",
     "path": "/subprojects"
   },
   {
@@ -506,6 +510,10 @@
   {
     "method": "POST",
     "path": "/setup"
+  },
+  {
+    "method": "POST",
+    "path": "/social/settings"
   },
   {
     "method": "POST",
